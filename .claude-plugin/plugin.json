@@ -1,0 +1,9 @@
+{
+  "name": "silex-spark",
+  "description": "API Spark tickets Pilotage + relations parent/blocks — PAT spu_ via ~/.config/silex.",
+  "author": {
+    "name": "Silex",
+    "url": "https://github.com/go-silex"
+  },
+  "version": "1.0.0"
+}

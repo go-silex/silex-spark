@@ -1,0 +1,19 @@
+{
+  "name": "silex-spark",
+  "owner": {
+    "name": "Silex"
+  },
+  "metadata": {
+    "description": "Plugin Claude / Codex / OMP pour l'API Spark (tickets, tâches, ressources).",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "silex-spark",
+      "version": "1.0.0",
+      "description": "API Spark tickets Pilotage + relations — PAT spu_ via ~/.config/silex.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

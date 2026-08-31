@@ -1,0 +1,11 @@
+# Spark agent defaults (pas de secrets — PAT dans ~/.config/silex/spark.env)
+# Copier vers :
+#   ./config/spark.yml          (projet — commitable, équipe)
+#   ~/.config/silex/spark.yml   (machine — spark-setup / config init --global)
+#
+# Priorité résolution client/project :
+#   CLI arg / --client  >  SPARK_CLIENT env  >  config projet  >  ~/.config/silex/spark.yml
+
+client: acme
+# project: App            # optionnel — défaut --project (create/search)
+# url: https://spark.gosilex.com
