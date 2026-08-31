@@ -20,6 +20,7 @@ Ordre (première source non vide) :
 1. Env `SPARK_USER_API_KEY` (ou `SPARK_API_KEY` si préfixe `spu_`)
 2. `~/.config/silex/spark.env` (`SPARK_URL` + `SPARK_USER_API_KEY`)
 3. `~/.config/silex/spark-user-api-key` (clé seule)
+4. BW note **`gosilex/spark-user-api-key`** (si `bw` + session agent)
 
 URL défaut : `https://spark.gosilex.com` (sinon `url:` dans spark.yml).
 
@@ -122,20 +123,20 @@ Si le compte accède à **plusieurs espaces**, passer le slug (`--client` / arg)
 
 ### `tickets create` — visibilité + priorité
 
-| Flag | Effet |
+| Flag | Effet (PAT staff / agent) |
 | --- | --- |
-| *(aucun)* | **`internal: true`** — défaut API |
+| *(aucun)* | **`internal: true`** — défaut API staff (safe agents) |
 | `--internal` | `internal: true` (explicite) |
-| `--public` | `internal: false` (visible dans l’espace) |
+| `--public` | `internal: false` (visible client + notifs client) |
 | `--priority p0\|p1\|p2\|p3` | Priorité dès le create (défaut API **p2** si omis) |
 | `--type bug\|feature` | Type ticket (défaut API **feature**) |
 | `--project <cuid\|name>` | `projectId` — CUID ou nom **unique** (ambigu → 400). Omis : rattache le seul projet Pilotage s'il n'y en a qu'un. |
 
 ```bash
-# Note interne → défaut OK
+# Tech debt / note staff / travail agent → défaut OK (interne)
 bash "$SCRIPT" tickets create acme "Tech debt: …" "…"
 
-# Bug / évolution **visible dans l’espace** → `--public`
+# Bug ou évolution **visible client** → OBLIGATOIRE --public
 bash "$SCRIPT" tickets create acme "Bouton budget cassé" "…" --public
 
 # Priorité haute dès le create
@@ -157,7 +158,7 @@ bash "$SCRIPT" tickets search acme --onRoadmap --priority p1,p2
 | `--type bug\|feature` | `type=` | |
 | `--project <id\|name>` | `project=` | CUID ou **nom unique** ; si plusieurs matchs → 400 + `candidates` (passer le CUID) |
 | `--onRoadmap` | `onRoadmap=1` | aussi `--onRoadmap=false` |
-| `--internal` | `internal=1` | notes internes |
+| `--internal` | `internal=1` | staff |
 | `--assignee <id>` | `assignee=` | User.id |
 | `--query "…"` | `query=` | title + description |
 | `--limit N` | `limit=` | défaut **100** (list = sans plafond) |
@@ -193,16 +194,16 @@ bash "$SCRIPT" tickets patch 42 '{"priority":"p1"}' --client acme
 bash "$SCRIPT" tickets comments add 42 "Message" --client acme [--parent N] [--internal]
 ```
 
-### Visibilité à la création
+### Visibilité à la création (règles obligatoires)
 
-Le défaut API/CLI est **`internal: true`**.
+Le défaut API/CLI staff est **`internal: true`**. Ticket **visible client** → **`--public`** (sinon pas de notif / pas visible client).
 
-| Intention | Flag CLI |
-| --- | --- |
-| Note interne, tech debt, chantier hors espace | *(aucun)* ou `--internal` |
-| Bug / évolution **à montrer dans l’espace** | **`--public`** |
+| Intention | Flag CLI | Notes |
+| --- | --- | --- |
+| Tech debt, ops, note staff, spawn agent, chantier interne | *(aucun)* ou `--internal` | **Défaut recommandé** |
+| Bug / évolution **à montrer au client** | **`--public` obligatoire** | Sinon le client ne le voit pas + pas de notif client |
 
-Passer `--priority` au **create** (un patch ensuite ne rattrape pas une notif déjà partie). Après create, vérifier `internal` et `priority` renvoyés par l’API.
+**Interdit** : créer un ticket « client » sans `--public` en espérant le défaut public ; patcher `internal` *après* create pour rattraper une notif déjà partie. Passer `--priority` au create. Après create, vérifier `internal` et `priority` renvoyés par l’API.
 
 ### GitHub (Task 1..n issues)
 

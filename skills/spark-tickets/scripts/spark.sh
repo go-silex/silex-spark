@@ -7,7 +7,7 @@
 #   spark.sh tickets list <clientSlug>
 #   spark.sh tickets search <clientSlug> [options]
 #   spark.sh tickets create <clientSlug> <title> [body] [--priority p0|p1|p2|p3] [--type bug|feature] [--project id|name] [--internal|--public]
-#     défaut create = internal true ; --public = visible dans l’espace ; priority défaut API = p2
+#     défaut PAT staff = internal true ; --public = visible client ; priority défaut API = p2
 #   spark.sh tickets patch <id|ref> <json> [--client slug]
 #   spark.sh tickets reject <id|ref> [--client slug] [--duplicate <ref|id>] [--comment "…"]
 #   spark.sh tickets get <id|ref> [--client slug]
@@ -62,6 +62,14 @@ resolve_key() {
   if [ -f "$HOME/.config/silex/spark-user-api-key" ]; then
     tr -d '\n\r' <"$HOME/.config/silex/spark-user-api-key"
     return 0
+  fi
+  if command -v bw >/dev/null 2>&1; then
+    local notes
+    notes="$(bw get notes 'gosilex/spark-user-api-key' 2>/dev/null || true)"
+    if [ -n "$notes" ]; then
+      printf '%s' "$notes" | grep -oE 'spu_[0-9a-f]+' | head -1
+      return 0
+    fi
   fi
   return 1
 }
@@ -1184,7 +1192,7 @@ PY
         title="${1:-}"
         shift || true
         body=""
-        visibility="" # "" = omit (API default internal true) | internal | public
+        visibility="" # "" = omit (API staff → internal true) | internal | public
         priority=""   # "" = omit → API default p2
         ticket_type=""
         project=""
@@ -1251,7 +1259,7 @@ PY
         done
         if [ -z "$client" ] || [ -z "$title" ]; then
           echo "Usage: spark.sh tickets create [clientSlug] <title> [body] [--priority …] [--project …] [--public]" >&2
-          echo "  client optionnel si config/spark.yml. Défaut = interne ; --public = visible dans l'espace." >&2
+          echo "  client optionnel si config/spark.yml. Défaut staff = interne ; --public = visible client." >&2
           exit 1
         fi
         if [ -z "$project" ]; then
@@ -1289,7 +1297,7 @@ if vis == "public":
   payload["internal"] = False
 elif vis == "internal":
   payload["internal"] = True
-# omit → API default internal true
+# omit → API resolveCreateInternal (staff default true)
 prio = (os.environ.get("PRIORITY") or "").strip()
 if prio:
   payload["priority"] = prio
@@ -1821,7 +1829,7 @@ spark.sh — API Spark (PAT spu_)
   spark.sh get|post|patch|delete <path> [json]
 
 Config secrets: SPARK_URL + SPARK_USER_API_KEY
-  ou ~/.config/silex/spark.env | ~/.config/silex/spark-user-api-key
+  ou ~/.config/silex/spark.env | spark-user-api-key | BW gosilex/spark-user-api-key
 
 Config client/project (pas de secret):
   ./config/spark.yml  |  ~/.config/silex/spark.yml  |  SPARK_CLIENT / SPARK_PROJECT

@@ -67,7 +67,7 @@ EOF
 chmod 600 ~/.config/silex/spark.env
 ```
 
-Ordre PAT : env `SPARK_USER_API_KEY` → `~/.config/silex/spark.env` → `~/.config/silex/spark-user-api-key`.
+Ordre PAT : env `SPARK_USER_API_KEY` → `spark.env` → `spark-user-api-key` → BW `gosilex/spark-user-api-key`.
 
 ### Client / projet (non secret)
 
@@ -99,10 +99,11 @@ bash "$SCRIPT" meta
 bash "$SCRIPT" meta-links
 bash "$SCRIPT" meta-projects
 bash "$SCRIPT" tickets list acme          # chaque ticket.links inclus
-# Create : défaut **interne**. Visible dans l’espace → **--public**.
+# Create : défaut staff/agent = **interne** (pas de notif client).
+# Ticket visible client / notif client → **--public** obligatoire.
 # Priorité dès le create → --priority p0|p1|p2|p3 (sinon p2).
 bash "$SCRIPT" tickets create acme "Tech debt …" "…"           # interne (défaut)
-bash "$SCRIPT" tickets create acme "Bug UI budget" "…" --public # visible dans l’espace
+bash "$SCRIPT" tickets create acme "Bug UI budget" "…" --public # visible client
 bash "$SCRIPT" tickets create acme "Hotfix images" "…" --public --priority p0
 bash "$SCRIPT" tickets patch <id> '{"priority":"p1"}'
 # Discussion (comments = fil ticket Pilotage)

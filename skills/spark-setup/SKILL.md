@@ -33,10 +33,16 @@ test -f ~/.config/silex/spark.yml && echo "spark.yml présent" || echo "spark.ym
 
 Ne **pas** afficher le contenu de la clé.
 
-### 2. Obtenir la clé
+### 2. Obtenir la clé (ordre)
 
 1. Demander si l’utilisateur a déjà une PAT (Spark → Mon compte → Clés API).
-2. Sinon guider : générer une clé → coller **une fois**. Ne pas afficher la clé complète.
+2. Sinon **Bitwarden** (si `bw` + session) :
+
+```bash
+bw get notes 'gosilex/spark-user-api-key' | grep -oE 'spu_[0-9a-f]+' | head -1
+```
+
+3. Sinon guider : Spark → Mon compte → Générer une clé → coller **une fois**.
 
 ### 3. Écrire spark.env (secrets)
 
@@ -108,11 +114,11 @@ Attendu : JSON meta OK ; `config show` affiche `client:` résolu.
 - prefix clé : spu_xxxxxxxx…
 - meta : HTTP 200 | erreur
 - suite : skill spark-tickets (« tickets list » sans client si config OK)
-- create : défaut **interne** ; visible dans l’espace → `--public`
+- create : défaut **interne** ; ticket visible client → `--public` obligatoire
 ```
 
 ## Notes
 
 - Rotation PAT : révoquer, regénérer, réécrire `spark.env` (yml inchangé).
-- Le défaut `client` évite `--client` à chaque commande ; override toujours possible.
-- Visibilité create : défaut `internal: true` ; `--public` si le ticket doit apparaître dans l’espace.
+- Convention BW note : **`gosilex/spark-user-api-key`**.
+- Visibilité create : défaut `internal: true` ; `--public` obligatoire si visible client.
