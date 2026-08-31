@@ -9,10 +9,10 @@ Produit : [https://spark.gosilex.com](https://spark.gosilex.com)
 | `spark-setup` | Écrire `~/.config/silex/spark.env` (URL + PAT) |
 | `spark-tickets` | Tickets, comments, tasks board, resources/journeys/org/accueil, projets, liens, GitHub |
 
-## Source of truth
+## Miroir public
 
-Ce dépôt **est** le plugin (`go-silex/silex-spark`).  
-`go-silex/spark` l’inclut en **submodule** `plugins/silex-spark` (marketplace colocated `silex-spark@spark` dans le clone Spark). Issues et PRs ici.
+**SoT = dépôt privé `go-silex/spark`, dossier `plugins/silex-spark/`.**  
+Ce dépôt GitHub (`go-silex/silex-spark`) est un **miroir en lecture seule**, synchronisé depuis `main` (prod). Issues et PRs ne sont pas le canal de contribution — voir `CONTRIBUTING.md`.
 
 ## Install (Claude Code)
 
@@ -138,7 +138,7 @@ ROOT=$(ls -d "$HOME/.claude/plugins/cache/silex-spark/silex-spark"/*/ 2>/dev/nul
 alias spark-api="bash ${ROOT}skills/spark-tickets/scripts/spark.sh"
 ```
 
-Dans un clone Spark : `git submodule update --init` puis marketplace colocated `silex-spark@spark`.
+Développeurs Silex : dans un clone de `go-silex/spark`, la marketplace colocated reste **`silex-spark@spark`** (directory `.`) ; pas besoin d’installer le miroir public pour travailler dans ce repo.
 
 ## License
 
