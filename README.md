@@ -56,7 +56,13 @@ omp plugin install 'github:go-silex/silex-spark#main'
 
 ### Secrets (PAT)
 
-Générer la clé dans Spark → **Mon compte** → Clés API, puis :
+**Pourquoi.** Les agents parlent à Spark avec **tes** droits (pas une clé d’app M2M `spk_`). Une PAT `spu_…` se génère dans l’UI, s’affiche **une seule fois**, et vit hors git.
+
+**Comment.** Spark → **Mon compte** (menu gauche) → **Clés API** → libellé → **Générer une clé** → **Copier**.
+
+![Générer une clé API Spark](docs/generate-api-key.gif)
+
+Puis :
 
 ```bash
 mkdir -p ~/.config/silex && chmod 700 ~/.config/silex

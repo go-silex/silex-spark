@@ -122,3 +122,4 @@ Attendu : JSON meta OK ; `config show` affiche `client:` résolu.
 - Rotation PAT : révoquer, regénérer, réécrire `spark.env` (yml inchangé).
 - Convention BW note : **`gosilex/spark-user-api-key`**.
 - Visibilité create : défaut `internal: true` ; `--public` obligatoire si visible client.
+- GIF README `docs/generate-api-key.gif` : livrable = le fichier. Record : Spark sur `http://localhost:3939` (`bun run dev`) puis `bun run gif:api-key`. Vérifier une frame (cercle bleu, clic visible).
