@@ -7,7 +7,7 @@ description: "API Spark PAT spu_ : tickets Pilotage + discussion + board tasks +
 
 Appelle l’API **prod** Spark avec la clé personnelle `spu_…` (droits du compte).
 
-Plugin SSOT : `go-silex/spark` → `plugins/silex-spark/`. Miroir public : `go-silex/silex-spark`.
+Plugin SSOT : `go-silex/silex-spark` (submodule `plugins/silex-spark` dans spark).
 
 **Ne jamais afficher la clé complète** dans le chat (prefix `spu_xxxxxxxx…` max).
 
