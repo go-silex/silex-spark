@@ -6,6 +6,7 @@
 #   spark.sh meta-projects
 #   spark.sh tickets list <clientSlug>
 #   spark.sh tickets search <clientSlug> [options]
+#   spark.sh tickets actionable [clientSlug] [--json] [--include-internal]
 #   spark.sh tickets create <clientSlug> <title> [body] [--priority p0|p1|p2|p3] [--type bug|feature] [--project id|name] [--internal|--public]
 #     défaut PAT staff = internal true ; --public = visible client ; priority défaut API = p2
 #   spark.sh tickets patch <id|ref> <json> [--client slug]
@@ -1015,6 +1016,64 @@ PY
         api GET "/api/v1/tickets?client=${client}"
         echo
         ;;
+      actionable)
+        parse_client_positional "${1:-}" || {
+          echo "Usage: spark.sh tickets actionable [clientSlug] [--json] [--include-internal]" >&2
+          client_missing_hint
+          exit 1
+        }
+        client="$PARSED_CLIENT"
+        [ "${NEED_SHIFT:-0}" = 1 ] && shift || true
+        as_json=0
+        include_internal=0
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            --json)
+              as_json=1
+              shift || true
+              ;;
+            --include-internal)
+              include_internal=1
+              shift || true
+              ;;
+            *)
+              echo "Usage: spark.sh tickets actionable [clientSlug] [--json] [--include-internal]" >&2
+              exit 1
+              ;;
+          esac
+        done
+        py_args=(--slug "$client")
+        [ "$as_json" = 1 ] && py_args+=(--json)
+        [ "$include_internal" = 1 ] && py_args+=(--include-internal)
+        work="$(mktemp -d)"
+        trap 'rm -rf "$work"' EXIT
+        python3 -c 'import json,sys; json.dump({"tickets": []}, sys.stdout)' >"$work/all.json"
+        offset=0
+        limit=200
+        while true; do
+          api GET "/api/v1/tickets?client=${client}&limit=${limit}&offset=${offset}" >"$work/page.json"
+          added="$(
+            python3 -c '
+import json, sys
+all_p, page_p = sys.argv[1], sys.argv[2]
+with open(all_p, encoding="utf-8") as f:
+    acc = json.load(f)
+with open(page_p, encoding="utf-8") as f:
+    page = json.load(f)
+chunk = page["tickets"] if isinstance(page, dict) else page
+if not isinstance(chunk, list):
+    raise SystemExit("tickets-actionable: unexpected page shape")
+acc["tickets"].extend(chunk)
+with open(all_p, "w", encoding="utf-8") as f:
+    json.dump(acc, f, ensure_ascii=False)
+print(len(chunk))
+' "$work/all.json" "$work/page.json"
+          )"
+          [ "$added" -lt "$limit" ] && break
+          offset=$((offset + limit))
+        done
+        python3 "${SCRIPT_DIR}/tickets-actionable.py" "${py_args[@]}" <"$work/all.json"
+        ;;
       search)
         parse_client_positional "${1:-}" || {
           cat <<'USAGE' >&2
@@ -1817,6 +1876,7 @@ spark.sh — API Spark (PAT spu_)
       --type bug|feature  --project <id|name>
       --onRoadmap  --internal  --assignee <id>
       --query "texte"  --limit N  --offset N
+  spark.sh tickets actionable [client] [--json] [--include-internal]
   spark.sh tickets get <id|ref> [--client slug]
   spark.sh tickets comments list|add … [--client slug]
   spark.sh tickets create [client] <title> [body] [--public] [--project …]

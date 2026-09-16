@@ -63,6 +63,7 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Catalogue v1 | `bash "$SCRIPT" v1` |
 | Lister tickets (+ **links** inclus) | `bash "$SCRIPT" tickets list <clientSlug>` |
 | Rechercher / filtrer tickets | `bash "$SCRIPT" tickets search <clientSlug> [options]` |
+| Tickets actionnables (non bloqués) | `bash "$SCRIPT" tickets actionable [clientSlug] [--json] [--include-internal]` |
 | Créer ticket | `bash "$SCRIPT" tickets create <clientSlug> "Titre" "Body?" [--priority p0\|p1\|p2\|p3] [--type bug\|feature] [--project id\|name] [--internal\|--public]` |
 | Patch ticket | `bash "$SCRIPT" tickets patch <id\|ref> '{"priority":"p1"}' [--client slug]` |
 | Non retenu (+ doublon + commentaire) | `bash "$SCRIPT" tickets reject <id\|ref> [--client slug] [--duplicate <ref>] [--comment "…"]` |
@@ -165,6 +166,20 @@ bash "$SCRIPT" tickets search acme --onRoadmap --priority p1,p2
 | `--offset N` | `offset=` | défaut 0 |
 
 Réponse : `{ tickets, total, limit, offset }` (+ `.links` par ticket).
+
+### `tickets actionable` (filtre graphe)
+
+Pas un filtre API : `tickets list` + classification locale.
+
+Actionnable = ouvert (`new|todo|doing|staging`), pas duplicate, pas `blockedBy` un ticket **non-internal encore ouvert**, aucun ancêtre dans ce cas. Les internaux ne comptent pas comme bloqueurs et sont exclus du output (sauf `--include-internal`).
+
+```bash
+bash "$SCRIPT" tickets actionable acme
+bash "$SCRIPT" tickets actionable acme --json
+bash "$SCRIPT" tickets actionable --include-internal
+```
+
+Client comme `tickets list` (arg / `SPARK_CLIENT` / spark.yml). Pas de slug défaut hardcodé.
 
 ## Comportement agent
 
