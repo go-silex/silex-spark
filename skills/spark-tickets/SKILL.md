@@ -64,8 +64,9 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Lister tickets (+ **links** inclus) | `bash "$SCRIPT" tickets list <clientSlug>` |
 | Rechercher / filtrer tickets | `bash "$SCRIPT" tickets search <clientSlug> [options]` |
 | Tickets actionnables (non bloqués) | `bash "$SCRIPT" tickets actionable [clientSlug] [--json] [--include-internal]` |
-| Créer ticket | `bash "$SCRIPT" tickets create <clientSlug> "Titre" "Body?" [--priority p0\|p1\|p2\|p3] [--type bug\|feature] [--project id\|name] [--internal\|--public]` |
+| Créer ticket | `bash "$SCRIPT" tickets create <clientSlug> "Titre" "Body?" [--priority p0\|p1\|p2\|p3] [--type bug\|feature] [--project id\|name] [--score n] [--internal\|--public]` |
 | Patch ticket | `bash "$SCRIPT" tickets patch <id\|ref> '{"priority":"p1"}' [--client slug]` |
+| Scorer / filtrer par Score | `bash "$SCRIPT" tickets patch <id\|ref> '{"score":8}' [--client slug]` · `tickets search <clientSlug> --unscored` |
 | Non retenu (+ doublon + commentaire) | `bash "$SCRIPT" tickets reject <id\|ref> [--client slug] [--duplicate <ref>] [--comment "…"]` |
 | Détail ticket (+ comments) | `bash "$SCRIPT" tickets get <id\|ref> [--client slug]` |
 | Lister commentaires | `bash "$SCRIPT" tickets comments list <id\|ref> [--client slug]` |
@@ -132,6 +133,7 @@ Si le compte accède à **plusieurs espaces**, passer le slug (`--client` / arg)
 | `--priority p0\|p1\|p2\|p3` | Priorité dès le create (défaut API **p2** si omis) |
 | `--type bug\|feature` | Type ticket (défaut API **feature**) |
 | `--project <cuid\|name>` | `projectId` — CUID ou nom **unique** (ambigu → 400). Omis : rattache le seul projet Pilotage s'il n'y en a qu'un. |
+| `--score <n>` | Score saisi dès le create — `1\|2\|3\|5\|8\|13\|21` (jouable) ou `34\|55` (préscore) ; staff only |
 
 ```bash
 # Tech debt / note staff / travail agent → défaut OK (interne)
@@ -150,6 +152,8 @@ bash "$SCRIPT" tickets create acme "Images cassées" "…" --public --priority p
 bash "$SCRIPT" tickets search acme --priority p0 --status todo --limit 20
 bash "$SCRIPT" tickets search acme --type feature --project App --query "github"
 bash "$SCRIPT" tickets search acme --onRoadmap --priority p1,p2
+bash "$SCRIPT" tickets search acme --unscored
+bash "$SCRIPT" tickets search acme --score 34,55
 ```
 
 | Option | Query API | Notes |
@@ -162,10 +166,43 @@ bash "$SCRIPT" tickets search acme --onRoadmap --priority p1,p2
 | `--internal` | `internal=1` | staff |
 | `--assignee <id>` | `assignee=` | User.id |
 | `--query "…"` | `query=` | title + description |
+| `--score <csv>` | `score=` | Entiers, match exact sur le Score effectif (`8`, `34,55`) ; **exclusif** avec `--unscored` |
+| `--unscored` | `unscored=1` | Tickets **non scorés** (`score` vide) |
+| `--scoreMode manual\|automatic` | `scoreMode=` | Parents : mode de score |
 | `--limit N` | `limit=` | défaut **100** (list = sans plafond) |
 | `--offset N` | `offset=` | défaut 0 |
 
 Réponse : `{ tickets, total, limit, offset }` (+ `.links` par ticket).
+
+### Score (échelle Fibonacci)
+
+Le Score dit l'**ampleur**, `priority` l'urgence. C'est un champ de ticket comme les autres : `tickets patch` suffit, il n'existe **pas** de `spark.sh score`.
+
+| Notion | Valeurs |
+| --- | --- |
+| Jouable | `1` `2` `3` `5` `8` `13` `21` |
+| Préscore (à découper) | `34` `55` |
+| Non scoré | champ **vide** — jamais `0` |
+
+- Valeur hors échelle (`0`, `4`, demi-point) → **400**.
+- **Lecture** ouverte à tout viewer du ticket (**client inclus**) ; **écriture** `score` / `scoreMode` **staff only** (client / M2M → 403).
+- Parent (ticket avec enfants) : mode **`automatic`** → Score = **somme des enfants directs**. `PATCH score` y est refusé (**400**) → passer en manuel et poser le score dans le même PATCH : `{"scoreMode":"manual","score":13}`.
+- `scoreMode` sur une **feuille** (sans enfant) → **400** : une feuille n'a pas de mode.
+- Enfant non scoré : ignoré dans la somme, parent marqué **incomplet** (`scoreIncomplete`, `scoreUnscoredChildren`) — jamais 0.
+- Somme gardée **brute** (16, 26 sont des résultats valides), jamais arrondie sur l'échelle.
+- Surfacé sur les tickets d'un **projet de développement** (Pilotage) uniquement.
+
+```bash
+# Scorer une feuille
+bash "$SCRIPT" tickets patch 42 '{"score":8}' --client acme
+# Parent : passer en manuel et poser le score (un seul appel)
+bash "$SCRIPT" tickets patch 77 '{"scoreMode":"manual","score":13}' --client acme
+# Backlog à scorer · gros morceaux à découper
+bash "$SCRIPT" tickets search acme --unscored
+bash "$SCRIPT" tickets search acme --score 34,55
+```
+
+Champs DTO (list **et** get) : `score` (effectif) · `scoreManual` (saisi, conservé même en automatique) · `scoreMode` · `scoreSum` · `scoreIncomplete` · `scoreUnscoredChildren`.
 
 ### `tickets actionable` (filtre graphe)
 
@@ -240,7 +277,7 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET | `/api/v1/tickets?meta=1` | read **ou** write |
 | GET | `/api/v1/tickets?client=<slug>` | `tickets:read` (+ `.links` toujours) |
 | GET | `/api/v1/tickets?client=&…&include=comments` | `tickets:read` — embed Discussion optionnel |
-| GET | `/api/v1/tickets?client=&priority=&status=&type=&project=&onRoadmap=&internal=&assignee=&query=&limit=&offset=` | `tickets:read` — filtres list/search |
+| GET | `/api/v1/tickets?client=&…&score=&unscored=&scoreMode=&priority=&status=&type=&project=&onRoadmap=&internal=&assignee=&query=&limit=&offset=` | `tickets:read` — filtres list/search (`score` + `unscored` ensemble → 400) |
 | POST | `/api/v1/tickets` | `tickets:write` (body optionnel `images: string[]`) |
 | GET | `/api/v1/tickets/:id` | `tickets:read` — détail + `comments` + links |
 | PATCH | `/api/v1/tickets/:id` | `tickets:write` |

@@ -7,7 +7,7 @@
 #   spark.sh tickets list <clientSlug>
 #   spark.sh tickets search <clientSlug> [options]
 #   spark.sh tickets actionable [clientSlug] [--json] [--include-internal]
-#   spark.sh tickets create <clientSlug> <title> [body] [--priority p0|p1|p2|p3] [--type bug|feature] [--project id|name] [--internal|--public]
+#   spark.sh tickets create <clientSlug> <title> [body] [--priority p0|p1|p2|p3] [--type bug|feature] [--project id|name] [--score n] [--internal|--public]
 #     défaut PAT staff = internal true ; --public = visible client ; priority défaut API = p2
 #   spark.sh tickets patch <id|ref> <json> [--client slug]
 #   spark.sh tickets reject <id|ref> [--client slug] [--duplicate <ref|id>] [--comment "…"]
@@ -1090,6 +1090,9 @@ Usage: spark.sh tickets search [clientSlug] [options]
   --query "texte"            (title + body)
   --limit N                  (défaut 100)
   --offset N                 (défaut 0)
+  --score <csv>              (entiers, match exact : 8 ou 34,55)
+  --unscored                 (tickets sans Score ; exclusif avec --score)
+  --scoreMode manual|automatic
 USAGE
           client_missing_hint
           exit 1
@@ -1107,6 +1110,9 @@ USAGE
         internal=""
         assignee=""
         query=""
+        score=""
+        unscored=""
+        score_mode=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --priority)
@@ -1157,6 +1163,28 @@ USAGE
               internal="${1#--internal=}"
               shift || true
               ;;
+            --score)
+              [ "$#" -ge 2 ] || { echo "spark.sh: $1 attend une valeur" >&2; exit 1; }
+              score="$2"
+              shift 2
+              ;;
+            --score=*)
+              score="${1#--score=}"
+              shift || true
+              ;;
+            --unscored)
+              unscored="1"
+              shift || true
+              ;;
+            --scoreMode | --score-mode)
+              [ "$#" -ge 2 ] || { echo "spark.sh: $1 attend une valeur" >&2; exit 1; }
+              score_mode="$2"
+              shift 2
+              ;;
+            --scoreMode=* | --score-mode=*)
+              score_mode="${1#*=}"
+              shift || true
+              ;;
             --assignee)
               assignee="${2:-}"
               shift 2 || true
@@ -1195,6 +1223,27 @@ USAGE
               ;;
           esac
         done
+        if [ -n "$score" ] && [ -n "$unscored" ]; then
+          echo "spark.sh tickets search: --score et --unscored sont exclusifs (un ticket non scoré n'a pas de valeur) — choisir l'un ou l'autre." >&2
+          exit 1
+        fi
+        if [ -n "$score" ]; then
+          case "$score" in
+            *[!0-9,]* | ,* | *, | *,,*)
+              echo "spark.sh tickets search: --score attend des entiers séparés par des virgules (ex: 8 ou 34,55) — reçu: $score" >&2
+              exit 1
+              ;;
+          esac
+        fi
+        if [ -n "$score_mode" ]; then
+          case "$score_mode" in
+            manual | automatic) ;;
+            *)
+              echo "spark.sh tickets search: --scoreMode manual|automatic attendu (reçu: $score_mode)" >&2
+              exit 1
+              ;;
+          esac
+        fi
         if [ -z "$project" ]; then
           project="$(default_project 2>/dev/null || true)"
         fi
@@ -1202,6 +1251,7 @@ USAGE
           CLIENT="$client" PRIORITY="$priority" STATUS="$status" TYPE="$type" \
             PROJECT="$project" ON_ROADMAP="$on_roadmap" INTERNAL="$internal" \
             ASSIGNEE="$assignee" QUERY="$query" LIMIT="$limit" OFFSET="$offset" \
+            SCORE="$score" UNSCORED="$unscored" SCORE_MODE="$score_mode" \
             python3 - <<'PY'
 import os
 from urllib.parse import urlencode
@@ -1218,6 +1268,9 @@ add(params, "type", os.environ.get("TYPE"))
 add(params, "project", os.environ.get("PROJECT"))
 add(params, "assignee", os.environ.get("ASSIGNEE"))
 add(params, "query", os.environ.get("QUERY"))
+add(params, "score", os.environ.get("SCORE"))
+add(params, "unscored", os.environ.get("UNSCORED"))
+add(params, "scoreMode", os.environ.get("SCORE_MODE"))
 # flags booléens : toujours envoyer si set (y compris "0"/"false")
 or_ = (os.environ.get("ON_ROADMAP") or "").strip()
 if or_ != "":
@@ -1255,6 +1308,7 @@ PY
         priority=""   # "" = omit → API default p2
         ticket_type=""
         project=""
+        score=""
         while [ $# -gt 0 ]; do
           case "$1" in
             --public)
@@ -1301,6 +1355,15 @@ PY
               project="${1#--project=}"
               shift
               ;;
+            --score)
+              [ "$#" -ge 2 ] || { echo "spark.sh: $1 attend une valeur" >&2; exit 1; }
+              score="$2"
+              shift 2
+              ;;
+            --score=*)
+              score="${1#--score=}"
+              shift
+              ;;
             --*)
               echo "spark.sh tickets create: option inconnue: $1" >&2
               exit 1
@@ -1342,9 +1405,19 @@ PY
               ;;
           esac
         fi
+        if [ -n "$score" ]; then
+          case "$score" in
+            1|2|3|5|8|13|21|34|55) ;;
+            *)
+              echo "spark.sh tickets create: --score attend une valeur de l'échelle 1|2|3|5|8|13|21 (jouable) ou 34|55 (préscore) — reçu: $score" >&2
+              exit 1
+              ;;
+          esac
+        fi
         payload="$(
           TITLE="$title" BODY="$body" CLIENT="$client" VIS="$visibility" \
-            PRIORITY="$priority" TTYPE="$ticket_type" PROJECT="$project" python3 - <<'PY'
+            PRIORITY="$priority" TTYPE="$ticket_type" PROJECT="$project" \
+            SCORE="$score" python3 - <<'PY'
 import json, os
 payload = {
   "clientSlug": os.environ["CLIENT"],
@@ -1363,6 +1436,9 @@ if prio:
 ttype = (os.environ.get("TTYPE") or "").strip()
 if ttype:
   payload["type"] = ttype
+sc = (os.environ.get("SCORE") or "").strip()
+if sc:
+  payload["score"] = int(sc)
 proj = (os.environ.get("PROJECT") or "").strip()
 if proj:
   # create API : projectId = cuid uniquement (pas le nom).
@@ -1875,11 +1951,12 @@ spark.sh — API Spark (PAT spu_)
       --priority p0|p1|p2|p3  --status new|todo|doing|…
       --type bug|feature  --project <id|name>
       --onRoadmap  --internal  --assignee <id>
+      --score <csv>  --unscored  --scoreMode manual|automatic
       --query "texte"  --limit N  --offset N
   spark.sh tickets actionable [client] [--json] [--include-internal]
   spark.sh tickets get <id|ref> [--client slug]
   spark.sh tickets comments list|add … [--client slug]
-  spark.sh tickets create [client] <title> [body] [--public] [--project …]
+  spark.sh tickets create [client] <title> [body] [--public] [--project …] [--score n]
   spark.sh tickets patch <id|ref> '<json>' [--client slug]
   spark.sh tickets reject <id|ref> [--client slug] [--duplicate <ref>] [--comment "…"]
   spark.sh tickets github-* <id|ref> … [--client slug]
