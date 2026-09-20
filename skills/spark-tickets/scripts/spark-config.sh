@@ -106,6 +106,28 @@ is_client_slug() {
   [[ "$s" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] && [ "${#s}" -le 64 ]
 }
 
+# Flag à valeur : `shift 2 || true` dans un `while` relit le même $1 à l'infini.
+need_value() {
+  [ "$#" -ge 2 ] && [ -n "${2}" ] || {
+    echo "spark.sh: $1 attend une valeur" >&2
+    exit 1
+  }
+  case "$2" in
+    --*)
+      echo "spark.sh: $1 attend une valeur" >&2
+      exit 1
+      ;;
+  esac
+}
+
+need_eq() {
+  local v="${1#*=}"
+  [ -n "$v" ] || {
+    echo "spark.sh: ${1%%=*} attend une valeur" >&2
+    exit 1
+  }
+}
+
 # Parse premier argument positionnel client (pas un flag).
 # Pose PARSED_CLIENT + NEED_SHIFT (pas de stdout — évite subshell).
 # $2 = "strict" → n'accepte $1 que si is_client_slug (create title-first).
@@ -165,26 +187,32 @@ spark_config_init() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --client)
-        client="${2:-}"
-        shift 2 || true
+        need_value "$@"
+        client="$2"
+        shift 2
         ;;
       --client=*)
+      need_eq "$1"
         client="${1#--client=}"
         shift || true
         ;;
       --project)
-        project="${2:-}"
-        shift 2 || true
+        need_value "$@"
+        project="$2"
+        shift 2
         ;;
       --project=*)
+      need_eq "$1"
         project="${1#--project=}"
         shift || true
         ;;
       --url)
-        url="${2:-}"
-        shift 2 || true
+        need_value "$@"
+        url="$2"
+        shift 2
         ;;
       --url=*)
+      need_eq "$1"
         url="${1#--url=}"
         shift || true
         ;;

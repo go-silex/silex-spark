@@ -268,10 +268,12 @@ case "$cmd" in
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --category)
-              category="${2:-Autre}"
-              shift 2 || true
+              need_value "$@"
+              category="$2"
+              shift 2
               ;;
             --category=*)
+              need_eq "$1"
               category="${1#--category=}"
               shift || true
               ;;
@@ -328,10 +330,12 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --category)
-              category="${2:-Autre}"
-              shift 2 || true
+              need_value "$@"
+              category="$2"
+              shift 2
               ;;
             --category=*)
+              need_eq "$1"
               category="${1#--category=}"
               shift || true
               ;;
@@ -340,10 +344,12 @@ PY
               shift || true
               ;;
             --body)
-              body_md="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              body_md="$2"
+              shift 2
               ;;
             --body=*)
+              need_eq "$1"
               body_md="${1#--body=}"
               shift || true
               ;;
@@ -397,18 +403,22 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --category)
-              category="${2:-Autre}"
-              shift 2 || true
+              need_value "$@"
+              category="$2"
+              shift 2
               ;;
             --category=*)
+              need_eq "$1"
               category="${1#--category=}"
               shift || true
               ;;
             --title)
-              title="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              title="$2"
+              shift 2
               ;;
             --title=*)
+              need_eq "$1"
               title="${1#--title=}"
               shift || true
               ;;
@@ -463,10 +473,12 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --client)
-              client="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              client="$2"
+              shift 2
               ;;
             --client=*)
+              need_eq "$1"
               client="${1#--client=}"
               shift || true
               ;;
@@ -530,16 +542,19 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --status)
-              qs="${qs}&status=${2:-}"
-              shift 2 || true
+              need_value "$@"
+              qs="${qs}&status=$2"
+              shift 2
               ;;
             --project)
-              qs="${qs}&project=${2:-}"
-              shift 2 || true
+              need_value "$@"
+              qs="${qs}&project=$2"
+              shift 2
               ;;
             --query|-q)
-              qs="${qs}&query=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "${2:-}")"
-              shift 2 || true
+              need_value "$@"
+              qs="${qs}&query=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$2")"
+              shift 2
               ;;
             --include-comments)
               qs="${qs}&include=comments"
@@ -644,16 +659,18 @@ PY
             while [ "$#" -gt 0 ]; do
               case "$1" in
                 --parent)
-                  parent="${2:-}"
-                  shift 2 || true
+                  need_value "$@"
+                  parent="$2"
+                  shift 2
                   ;;
                 --internal)
                   internal="1"
                   shift || true
                   ;;
                 --client)
-                  client="${2:-}"
-                  shift 2 || true
+                  need_value "$@"
+                  client="$2"
+                  shift 2
                   ;;
                 *)
                   body_text="${body_text} $1"
@@ -756,10 +773,12 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --kind)
-              kind="${2:-orgchart}"
-              shift 2 || true
+              need_value "$@"
+              kind="$2"
+              shift 2
               ;;
             --kind=*)
+              need_eq "$1"
               kind="${1#--kind=}"
               shift || true
               ;;
@@ -912,8 +931,9 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --kind)
-              q="${q}&kind=${2:-}"
-              shift 2 || true
+              need_value "$@"
+              q="${q}&kind=$2"
+              shift 2
               ;;
             --include-archived)
               q="${q}&includeArchived=1"
@@ -1116,34 +1136,42 @@ USAGE
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --priority)
-              priority="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              priority="$2"
+              shift 2
               ;;
             --priority=*)
+              need_eq "$1"
               priority="${1#--priority=}"
               shift || true
               ;;
             --status)
-              status="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              status="$2"
+              shift 2
               ;;
             --status=*)
+              need_eq "$1"
               status="${1#--status=}"
               shift || true
               ;;
             --type)
-              type="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              type="$2"
+              shift 2
               ;;
             --type=*)
+              need_eq "$1"
               type="${1#--type=}"
               shift || true
               ;;
             --project)
-              project="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              project="$2"
+              shift 2
               ;;
             --project=*)
+              need_eq "$1"
               project="${1#--project=}"
               shift || true
               ;;
@@ -1152,6 +1180,7 @@ USAGE
               shift || true
               ;;
             --onRoadmap=* | --on-roadmap=*)
+              need_eq "$1"
               on_roadmap="${1#*=}"
               shift || true
               ;;
@@ -1160,6 +1189,7 @@ USAGE
               shift || true
               ;;
             --internal=*)
+              need_eq "$1"
               internal="${1#--internal=}"
               shift || true
               ;;
@@ -1169,6 +1199,7 @@ USAGE
               shift 2
               ;;
             --score=*)
+              need_eq "$1"
               score="${1#--score=}"
               shift || true
               ;;
@@ -1182,38 +1213,47 @@ USAGE
               shift 2
               ;;
             --scoreMode=* | --score-mode=*)
+              need_eq "$1"
               score_mode="${1#*=}"
               shift || true
               ;;
             --assignee)
-              assignee="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              assignee="$2"
+              shift 2
               ;;
             --assignee=*)
+              need_eq "$1"
               assignee="${1#--assignee=}"
               shift || true
               ;;
             --query | -q)
-              query="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              query="$2"
+              shift 2
               ;;
             --query=* | -q=*)
+              need_eq "$1"
               query="${1#*=}"
               shift || true
               ;;
             --limit)
-              limit="${2:-100}"
-              shift 2 || true
+              need_value "$@"
+              limit="$2"
+              shift 2
               ;;
             --limit=*)
+              need_eq "$1"
               limit="${1#--limit=}"
               shift || true
               ;;
             --offset)
-              offset="${2:-0}"
-              shift 2 || true
+              need_value "$@"
+              offset="$2"
+              shift 2
               ;;
             --offset=*)
+              need_eq "$1"
               offset="${1#--offset=}"
               shift || true
               ;;
@@ -1303,6 +1343,16 @@ PY
         [ "${NEED_SHIFT:-0}" = 1 ] && shift || true
         title="${1:-}"
         shift || true
+        case "$title" in
+          --help | -h)
+            echo "Usage: spark.sh tickets create [clientSlug] <title> [body] [--priority …] [--project …] [--score n] [--public]" >&2
+            exit 1
+            ;;
+          --*)
+            echo "spark.sh tickets create: le titre ne peut pas commencer par -- (reçu: $title)" >&2
+            exit 1
+            ;;
+        esac
         body=""
         visibility="" # "" = omit (API staff → internal true) | internal | public
         priority=""   # "" = omit → API default p2
@@ -1320,6 +1370,7 @@ PY
               shift
               ;;
             --internal=*)
+              need_eq "$1"
               v="${1#--internal=}"
               case "$v" in
                 1|true|yes|on) visibility="internal" ;;
@@ -1332,26 +1383,32 @@ PY
               shift
               ;;
             --priority)
-              priority="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              priority="$2"
+              shift 2
               ;;
             --priority=*)
+              need_eq "$1"
               priority="${1#--priority=}"
               shift
               ;;
             --type)
-              ticket_type="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              ticket_type="$2"
+              shift 2
               ;;
             --type=*)
+              need_eq "$1"
               ticket_type="${1#--type=}"
               shift
               ;;
             --project)
-              project="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              project="$2"
+              shift 2
               ;;
             --project=*)
+              need_eq "$1"
               project="${1#--project=}"
               shift
               ;;
@@ -1361,6 +1418,7 @@ PY
               shift 2
               ;;
             --score=*)
+              need_eq "$1"
               score="${1#--score=}"
               shift
               ;;
@@ -1457,10 +1515,12 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --client)
-              client="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              client="$2"
+              shift 2
               ;;
             --client=*)
+              need_eq "$1"
               client="${1#--client=}"
               shift || true
               ;;
@@ -1509,26 +1569,32 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --client)
-              client="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              client="$2"
+              shift 2
               ;;
             --client=*)
+              need_eq "$1"
               client="${1#--client=}"
               shift || true
               ;;
             --duplicate)
-              duplicate="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              duplicate="$2"
+              shift 2
               ;;
             --duplicate=*)
+              need_eq "$1"
               duplicate="${1#--duplicate=}"
               shift || true
               ;;
             --comment)
-              comment="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              comment="$2"
+              shift 2
               ;;
             --comment=*)
+              need_eq "$1"
               comment="${1#--comment=}"
               shift || true
               ;;
@@ -1574,10 +1640,12 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --client)
-              client="${2:-}"
-              shift 2 || true
+              need_value "$@"
+              client="$2"
+              shift 2
               ;;
             --client=*)
+              need_eq "$1"
               client="${1#--client=}"
               shift || true
               ;;
@@ -1611,10 +1679,12 @@ PY
             while [ "$#" -gt 0 ]; do
               case "$1" in
                 --client)
-                  client="${2:-}"
-                  shift 2 || true
+                  need_value "$@"
+                  client="$2"
+                  shift 2
                   ;;
                 --client=*)
+                  need_eq "$1"
                   client="${1#--client=}"
                   shift || true
                   ;;
@@ -1647,10 +1717,12 @@ PY
             while [ "$#" -gt 0 ]; do
               case "$1" in
                 --parent)
-                  parent="${2:-}"
-                  shift 2 || true
+                  need_value "$@"
+                  parent="$2"
+                  shift 2
                   ;;
                 --parent=*)
+                  need_eq "$1"
                   parent="${1#--parent=}"
                   shift || true
                   ;;
@@ -1659,10 +1731,12 @@ PY
                   shift || true
                   ;;
                 --client)
-                  client="${2:-}"
-                  shift 2 || true
+                  need_value "$@"
+                  client="$2"
+                  shift 2
                   ;;
                 --client=*)
+                  need_eq "$1"
                   client="${1#--client=}"
                   shift || true
                   ;;
@@ -1716,8 +1790,8 @@ PY
         client=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
-            --client) client="${2:-}"; shift 2 || true ;;
-            --client=*) client="${1#--client=}"; shift || true ;;
+            --client) need_value "$@"; client="$2"; shift 2 ;;
+            --client=*) need_eq "$1"; client="${1#--client=}"; shift || true ;;
             *) echo "Arg inconnu: $1" >&2; exit 1 ;;
           esac
         done
@@ -1740,8 +1814,8 @@ PY
         client=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
-            --client) client="${2:-}"; shift 2 || true ;;
-            --client=*) client="${1#--client=}"; shift || true ;;
+            --client) need_value "$@"; client="$2"; shift 2 ;;
+            --client=*) need_eq "$1"; client="${1#--client=}"; shift || true ;;
             *) echo "Arg inconnu: $1" >&2; exit 1 ;;
           esac
         done
@@ -1765,8 +1839,8 @@ PY
         client=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
-            --client) client="${2:-}"; shift 2 || true ;;
-            --client=*) client="${1#--client=}"; shift || true ;;
+            --client) need_value "$@"; client="$2"; shift 2 ;;
+            --client=*) need_eq "$1"; client="${1#--client=}"; shift || true ;;
             *) echo "Arg inconnu: $1" >&2; exit 1 ;;
           esac
         done
@@ -1796,8 +1870,8 @@ PY
         client=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
-            --client) client="${2:-}"; shift 2 || true ;;
-            --client=*) client="${1#--client=}"; shift || true ;;
+            --client) need_value "$@"; client="$2"; shift 2 ;;
+            --client=*) need_eq "$1"; client="${1#--client=}"; shift || true ;;
             *) echo "Arg inconnu: $1" >&2; exit 1 ;;
           esac
         done
@@ -1838,12 +1912,14 @@ PY
         while [ "$#" -gt 0 ]; do
           case "$1" in
             --task)
-              q="${q}&taskId=${2:-}"
-              shift 2 || true
+              need_value "$@"
+              q="${q}&taskId=$2"
+              shift 2
               ;;
             --kind)
-              q="${q}&kind=${2:-}"
-              shift 2 || true
+              need_value "$@"
+              q="${q}&kind=$2"
+              shift 2
               ;;
             *)
               echo "Arg inconnu: $1" >&2
