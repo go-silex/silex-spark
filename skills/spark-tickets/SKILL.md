@@ -85,8 +85,9 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Journeys list/create/get/patch/delete | `bash "$SCRIPT" journeys …` |
 | Organigramme get/put | `bash "$SCRIPT" orgchart get\|put …` |
 | Accueil get/patch | `bash "$SCRIPT" accueil get\|patch …` |
-| Board Tâches (≠ tickets) | `bash "$SCRIPT" tasks list\|create\|get\|patch\|delete …` |
-| Comments board tâches | `bash "$SCRIPT" tasks comments list\|add …` |
+| Board Tâches (≠ tickets) | `bash "$SCRIPT" tasks list\|create …` |
+| Tâche get/patch/delete | `bash "$SCRIPT" tasks patch <cuid> '{"priority":"p1"}' [--client slug]` (idem `get`/`delete`) |
+| Comments board tâches | `bash "$SCRIPT" tasks comments list\|add <cuid> … [--client slug]` |
 | Lister projets | `bash "$SCRIPT" projects list <clientSlug> [--kind development]` |
 | Lookup projet par dépôt GitHub | `bash "$SCRIPT" projects by-repo <owner>/<repo>` |
 | Créer projet | `bash "$SCRIPT" projects create <clientSlug> "Nom" [kind] [color]` |
@@ -231,6 +232,7 @@ Client comme `tickets list` (arg / `SPARK_CLIENT` / spark.yml). Pas de slug déf
    - **CUID** → toujours OK (unique global).
    - **Ref numérique** `#N` / `N` → unique par espace → **`--client <slug>`** si plusieurs espaces (sinon 400).
    - **Nom** (projet) → exactement 1 match (exact puis contains) ; sinon **400** + `candidates` → passer le CUID.
+   - **`tasks get|patch|delete|comments`** → CUID seul (pas de ref), vérifié par le CLI (`c…`). L'espace d'un CUID ne se devine pas : le CLI n'utilise **jamais** le défaut `spark.yml` ici, seulement `--client` (ou le slug positionnel pour get/delete/comments list). Owner multi-espaces sans client → **400 « client requis »** : repasser avec `--client`. Compte mono-espace → son espace, flag inutile. L'exit code reste 0 sur une erreur API : lire le champ `error` du JSON.
 9. Scopes `tickets:read|write` = **API v1 générique** (toutes surfaces), pas « tickets only ».
 
 ### Discussion (comments = fil Task)

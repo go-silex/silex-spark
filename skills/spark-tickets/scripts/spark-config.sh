@@ -172,6 +172,55 @@ fill_client_if_empty() {
   return 1
 }
 
+# Args après un <id> de tâche : [clientSlug] ou --client slug — un seul, validé.
+# Pose PARSED_CLIENT. Jamais de défaut spark.yml : l'espace d'un CUID ne se
+# devine pas (un mauvais défaut ferait d'un DELETE un faux succès). Sans client,
+# l'API tranche : owner → 400 « client requis », compte mono-espace → son espace.
+parse_client_args() {
+  PARSED_CLIENT=""
+  local v
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --client)
+        need_value "$@"
+        v="$2"
+        shift 2
+        ;;
+      --client=*)
+        need_eq "$1"
+        v="${1#--client=}"
+        shift
+        ;;
+      --*)
+        echo "Arg inconnu: $1" >&2
+        exit 1
+        ;;
+      *)
+        v="$1"
+        shift
+        # Positionnel vide (script qui passe "$CLIENT" non défini) = pas de client.
+        [ -n "$v" ] || continue
+        ;;
+    esac
+    if [ -n "$PARSED_CLIENT" ]; then
+      echo "spark.sh: un seul client (« $PARSED_CLIENT » puis « $v »)" >&2
+      exit 1
+    fi
+    if ! is_client_slug "$v"; then
+      echo "spark.sh: slug client invalide : $v" >&2
+      exit 1
+    fi
+    PARSED_CLIENT="$v"
+  done
+}
+
+# <id> d'une tâche = CUID Prisma (c + ~24 car.). Un slug ou un flag pris pour l'id
+# (args inversés, --client en tête) produirait un DELETE sur un id inconnu, auquel
+# l'API répond 200 {ok:true} sans rien supprimer : l'erreur doit tomber ici.
+is_task_cuid() {
+  [[ "${1:-}" =~ ^c[a-z0-9]{20,32}$ ]]
+}
+
 client_missing_hint() {
   cat >&2 <<'EOF'
 client requis : passe <clientSlug> en argument, ou configure un défaut :

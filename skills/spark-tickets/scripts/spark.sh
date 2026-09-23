@@ -30,7 +30,12 @@
 #   spark.sh journeys list|create|get|patch|delete …
 #   spark.sh orgchart get|put …
 #   spark.sh accueil get|patch …
-#   spark.sh tasks list|create|get|patch|delete|comments …
+#   spark.sh tasks list|create …
+#   spark.sh tasks get|delete <cuid> [clientSlug | --client slug]
+#   spark.sh tasks patch <cuid> <json> [--client slug]
+#   spark.sh tasks comments list <cuid> [clientSlug | --client slug]
+#   spark.sh tasks comments add <cuid> "body" [--parent N] [--internal] [--client slug]
+#     client explicite seulement (jamais le défaut spark.yml) ; <cuid> vérifié (c…)
 #   spark.sh get|post|patch|delete <path> [json]
 #   spark.sh config show|init|set …
 # Config client/project : config/spark.yml | ~/.config/silex/spark.yml (voir spark-config.sh)
@@ -153,6 +158,19 @@ api_multipart() {
     -H "Authorization: Bearer $key" \
     -H "Accept: application/json" \
     "$@"
+}
+
+# PATCH body avec clientSlug forcé à l'espace résolu : les routes /[id] lisent
+# body.clientSlug avant ?client=, les deux canaux ne doivent jamais diverger.
+json_with_client_slug() {
+  JSON="$1" CLIENT="$2" python3 - <<'PY'
+import json, os
+body = json.loads(os.environ["JSON"])
+if not isinstance(body, dict):
+    raise SystemExit("json body must be an object")
+body["clientSlug"] = os.environ["CLIENT"]
+print(json.dumps(body))
+PY
 }
 
 json_payload() {
@@ -594,9 +612,11 @@ PY
         ;;
       get)
         id="${1:-}"
-        client="${2:-}"
-        if [ -z "$id" ]; then
-          echo "Usage: spark.sh tasks get <id> [client]" >&2
+        shift || true
+        parse_client_args "$@"
+        client="$PARSED_CLIENT"
+        if ! is_task_cuid "$id"; then
+          echo "Usage: spark.sh tasks get <cuid> [clientSlug|--client slug]" >&2
           exit 1
         fi
         if [ -n "$client" ]; then
@@ -608,19 +628,56 @@ PY
         ;;
       patch)
         id="${1:-}"
-        json="${2:-}"
-        if [ -z "$id" ] || [ -z "$json" ]; then
-          echo "Usage: spark.sh tasks patch <id> '<json>'" >&2
+        shift || true
+        # Même convention que tickets patch : 1er non-flag = JSON, rien d'autre.
+        json=""
+        client_args=()
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            --client)
+              need_value "$@"
+              client_args+=("$1" "$2")
+              shift 2
+              ;;
+            --client=*)
+              client_args+=("$1")
+              shift
+              ;;
+            --*)
+              echo "Arg inconnu: $1" >&2
+              exit 1
+              ;;
+            *)
+              if [ -n "$json" ]; then
+                echo "Arg inconnu: $1" >&2
+                exit 1
+              fi
+              json="$1"
+              shift
+              ;;
+          esac
+        done
+        parse_client_args ${client_args[@]+"${client_args[@]}"}
+        client="$PARSED_CLIENT"
+        if ! is_task_cuid "$id" || [ -z "$json" ]; then
+          echo "Usage: spark.sh tasks patch <cuid> '<json>' [--client slug]" >&2
           exit 1
         fi
-        api PATCH "/api/v1/tasks/${id}" "$json"
+        if [ -n "$client" ]; then
+          payload="$(json_with_client_slug "$json" "$client")"
+          api PATCH "/api/v1/tasks/${id}?client=${client}" "$payload"
+        else
+          api PATCH "/api/v1/tasks/${id}" "$json"
+        fi
         echo
         ;;
       delete)
         id="${1:-}"
-        client="${2:-}"
-        if [ -z "$id" ]; then
-          echo "Usage: spark.sh tasks delete <id> [client]" >&2
+        shift || true
+        parse_client_args "$@"
+        client="$PARSED_CLIENT"
+        if ! is_task_cuid "$id"; then
+          echo "Usage: spark.sh tasks delete <cuid> [clientSlug|--client slug]" >&2
           exit 1
         fi
         if [ -n "$client" ]; then
@@ -636,9 +693,11 @@ PY
         case "$csub" in
           list)
             id="${1:-}"
-            client="${2:-}"
-            if [ -z "$id" ]; then
-              echo "Usage: spark.sh tasks comments list <id> [client]" >&2
+            shift || true
+            parse_client_args "$@"
+            client="$PARSED_CLIENT"
+            if ! is_task_cuid "$id"; then
+              echo "Usage: spark.sh tasks comments list <cuid> [clientSlug|--client slug]" >&2
               exit 1
             fi
             if [ -n "$client" ]; then
@@ -651,11 +710,12 @@ PY
           add)
             id="${1:-}"
             shift || true
-            body_text="${1:-}"
-            shift || true
+            body_text=""
             parent=""
             internal=""
-            client=""
+            client_args=()
+            # Même garde que tickets comments add : un flag inconnu (ex. --intrenal)
+            # ne doit jamais finir dans le texte d'un commentaire visible client.
             while [ "$#" -gt 0 ]; do
               case "$1" in
                 --parent)
@@ -663,23 +723,38 @@ PY
                   parent="$2"
                   shift 2
                   ;;
+                --parent=*)
+                  need_eq "$1"
+                  parent="${1#--parent=}"
+                  shift
+                  ;;
                 --internal)
                   internal="1"
-                  shift || true
+                  shift
                   ;;
                 --client)
                   need_value "$@"
-                  client="$2"
+                  client_args+=("$1" "$2")
                   shift 2
                   ;;
+                --client=*)
+                  client_args+=("$1")
+                  shift
+                  ;;
+                --*)
+                  echo "Option inconnue: $1" >&2
+                  exit 1
+                  ;;
                 *)
-                  body_text="${body_text} $1"
-                  shift || true
+                  body_text="${body_text:+$body_text }$1"
+                  shift
                   ;;
               esac
             done
-            if [ -z "$id" ] || [ -z "$body_text" ]; then
-              echo "Usage: spark.sh tasks comments add <id> \"body\" [--parent N] [--internal]" >&2
+            parse_client_args ${client_args[@]+"${client_args[@]}"}
+            client="$PARSED_CLIENT"
+            if ! is_task_cuid "$id" || [ -z "$body_text" ]; then
+              echo "Usage: spark.sh tasks comments add <cuid> \"body\" [--parent N] [--internal] [--client slug]" >&2
               exit 1
             fi
             payload="$(
@@ -1544,16 +1619,7 @@ PY
         client="$PARSED_CLIENT"
         # clientSlug aussi en body pour PATCH (query + body supportés par l'API)
         if [ -n "$client" ]; then
-          payload="$(
-            JSON="$json" CLIENT="$client" python3 - <<'PY'
-import json, os
-body = json.loads(os.environ["JSON"])
-if not isinstance(body, dict):
-    raise SystemExit("json body must be an object")
-body["clientSlug"] = os.environ["CLIENT"]
-print(json.dumps(body))
-PY
-          )"
+          payload="$(json_with_client_slug "$json" "$client")"
           api PATCH "/api/v1/tickets/${id}?client=${client}" "$payload"
         else
           api PATCH "/api/v1/tickets/${id}" "$json"
