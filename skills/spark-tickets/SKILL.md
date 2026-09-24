@@ -86,6 +86,7 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Organigramme get/put | `bash "$SCRIPT" orgchart get\|put …` |
 | Accueil get/patch | `bash "$SCRIPT" accueil get\|patch …` |
 | Board Tâches (≠ tickets) | `bash "$SCRIPT" tasks list\|create …` |
+| Capturer une Idée | `bash "$SCRIPT" ideas create [clientSlug] "Titre" [--internal]` |
 | Tâche get/patch/delete | `bash "$SCRIPT" tasks patch <cuid> '{"priority":"p1"}' [--client slug]` (idem `get`/`delete`) |
 | Comments board tâches | `bash "$SCRIPT" tasks comments list\|add <cuid> … [--client slug]` |
 | Lister projets | `bash "$SCRIPT" projects list <clientSlug> [--kind development]` |
@@ -146,6 +147,22 @@ bash "$SCRIPT" tickets create acme "Bouton budget cassé" "…" --public
 # Priorité haute dès le create
 bash "$SCRIPT" tickets create acme "Images cassées" "…" --public --priority p0 --type feature
 ```
+
+### `ideas create` — capture Idées
+
+Une Idée est une Task sans projet, statut, Score ni échéance. Titre seul (200). Pas de notif Slack. La section Idées doit être ouverte pour un compte client ; un owner passe le verrou.
+
+| Flag | Effet |
+| --- | --- |
+| *(aucun)* | **visible** (`internal: false`) — comme la capture de l'onglet |
+| `--internal` | masquée au client ; refusé (403) hors staff Silex |
+
+```bash
+bash "$SCRIPT" ideas create acme "Microtool d'audit de projet vibe-codé"
+bash "$SCRIPT" ideas create acme "Note staff" --internal
+```
+
+Description, tags et images se posent dans l'onglet, pas par cette commande.
 
 ### `tickets search` (filtres API)
 

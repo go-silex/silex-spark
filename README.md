@@ -126,6 +126,8 @@ bash "$SCRIPT" accueil get acme
 bash "$SCRIPT" accueil patch acme '{"recap":"## MAJ\n"}'
 bash "$SCRIPT" tasks list acme
 bash "$SCRIPT" tasks create acme "Nouvelle tâche" "détail"
+bash "$SCRIPT" ideas create acme "Une idée"            # visible (défaut)
+bash "$SCRIPT" ideas create acme "Note staff" --internal
 bash "$SCRIPT" tasks patch <id> '{"priority":"p1"}' --client acme
 bash "$SCRIPT" tasks comments add <id> "note" --client acme
 bash "$SCRIPT" projects list acme --kind development

@@ -36,6 +36,8 @@
 #   spark.sh tasks comments list <cuid> [clientSlug | --client slug]
 #   spark.sh tasks comments add <cuid> "body" [--parent N] [--internal] [--client slug]
 #     client explicite seulement (jamais le défaut spark.yml) ; <cuid> vérifié (c…)
+#   spark.sh ideas create [clientSlug] <title> [--internal]
+#     défaut visible (internal false), comme la capture UI ; --internal = staff Silex
 #   spark.sh get|post|patch|delete <path> [json]
 #   spark.sh config show|init|set …
 # Config client/project : config/spark.yml | ~/.config/silex/spark.yml (voir spark-config.sh)
@@ -2080,6 +2082,68 @@ PY
     api DELETE "$path"
     echo
     ;;
+  ideas)
+    isub="${1:-}"
+    shift || true
+    case "$isub" in
+      create)
+        parse_client_positional "${1:-}" strict || {
+          echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
+          client_missing_hint
+          exit 1
+        }
+        client="$PARSED_CLIENT"
+        [ "${NEED_SHIFT:-0}" = 1 ] && shift || true
+        title="${1:-}"
+        shift || true
+        case "$title" in
+          --help | -h)
+            echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
+            echo "  Titre seul. Défaut visible. --internal = masquée au client (staff Silex)." >&2
+            exit 1
+            ;;
+          --*)
+            echo "spark.sh ideas create: le titre ne peut pas commencer par -- (reçu: $title)" >&2
+            exit 1
+            ;;
+          "")
+            echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
+            exit 1
+            ;;
+        esac
+        internal=0
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --internal) internal=1; shift ;;
+            --*)
+              echo "spark.sh ideas create: option inconnue: $1" >&2
+              exit 1
+              ;;
+            *)
+              echo "spark.sh ideas create: argument inattendu: $1 (titre seul)" >&2
+              exit 1
+              ;;
+          esac
+        done
+        payload="$(
+          TITLE="$title" CLIENT="$client" INTERNAL="$internal" python3 - <<'PY'
+import json, os
+print(json.dumps({
+  "clientSlug": os.environ["CLIENT"],
+  "title": os.environ["TITLE"],
+  "internal": os.environ.get("INTERNAL") == "1",
+}))
+PY
+        )"
+        api POST "/api/v1/ideas" "$payload"
+        echo
+        ;;
+      *)
+        echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
+        exit 1
+        ;;
+    esac
+    ;;
   "" | help | -h | --help)
     cat <<'EOF'
 spark.sh — API Spark (PAT spu_)
@@ -2104,6 +2168,7 @@ spark.sh — API Spark (PAT spu_)
   spark.sh tickets github-* <id|ref> … [--client slug]
   spark.sh projects list|by-repo|create|patch|delete …
   spark.sh links|resources|journeys|orgchart|accueil|tasks …
+  spark.sh ideas create [client] <title> [--internal]
   spark.sh config show|init|set …
   spark.sh get|post|patch|delete <path> [json]
 
