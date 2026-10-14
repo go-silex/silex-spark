@@ -117,7 +117,9 @@ bash "$SCRIPT" tickets get <id|ref> [--client slug]
 bash "$SCRIPT" tickets comments list <id>
 bash "$SCRIPT" tickets comments add <id> "Message" [--parent N] [--internal]
 bash "$SCRIPT" resources list acme
-bash "$SCRIPT" resources create acme "Lecture" "https://…" --category Lectures
+# Type de document par défaut : Documentation. Types canoniques : Cadrage, Livrables, Comptes-rendus, Présentations, Documentation, Devis, Factures, Contrats & NDA ; un type libre reste accepté.
+bash "$SCRIPT" resources create acme "Note de cadrage" "https://…" --category Cadrage
+bash "$SCRIPT" resources patch <id> '{"category":"Livrables"}' --client acme
 bash "$SCRIPT" journeys list acme
 bash "$SCRIPT" journeys create acme "Onboarding"
 bash "$SCRIPT" orgchart get acme

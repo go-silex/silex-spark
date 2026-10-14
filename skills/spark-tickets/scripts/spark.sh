@@ -43,6 +43,9 @@
 # Config client/project : config/spark.yml | ~/.config/silex/spark.yml (voir spark-config.sh)
 set -euo pipefail
 
+DEFAULT_RESOURCE_CATEGORY="Documentation"
+RESOURCE_CATEGORY_USAGE='[--category "Cadrage|Livrables|Comptes-rendus|Présentations|Documentation|Devis|Factures|Contrats & NDA|<type libre>"]'
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=spark-config.sh
 . "${SCRIPT_DIR}/spark-config.sh"
@@ -138,7 +141,7 @@ api() {
   fi
 }
 
-# Multipart POST (resources create-file). Extra args = curl -F fields after path resolution.
+# Multipart POST (resources create-file). Extra args are curl form arguments after path resolution.
 api_multipart() {
   local path="$1"
   shift || true
@@ -283,7 +286,7 @@ case "$cmd" in
         shift || true
         url="${1:-}"
         shift || true
-        category="Autre"
+        category="$DEFAULT_RESOURCE_CATEGORY"
         internal_flag=0
         while [ "$#" -gt 0 ]; do
           case "$1" in
@@ -308,18 +311,18 @@ case "$cmd" in
           esac
         done
         if [ -z "$client" ] || [ -z "$url" ]; then
-          echo "Usage: spark.sh resources create <client> <title> <url> [--category Lectures|Comptes-rendus|Autre] [--internal]" >&2
+          echo "Usage: spark.sh resources create <client> <title> <url> ${RESOURCE_CATEGORY_USAGE} [--internal] (défaut ${DEFAULT_RESOURCE_CATEGORY})" >&2
           exit 1
         fi
         if [ -z "$title" ]; then title="$url"; fi
         payload="$(
-          CLIENT="$client" TITLE="$title" URL="$url" CAT="$category" INTERNAL="${internal_flag:-0}" python3 - <<'PY'
+          CLIENT="$client" TITLE="$title" URL="$url" CAT="$category" DEFAULT_RESOURCE_CATEGORY="$DEFAULT_RESOURCE_CATEGORY" INTERNAL="${internal_flag:-0}" python3 - <<'PY'
 import json, os
 payload = {
   "clientSlug": os.environ["CLIENT"],
   "title": os.environ["TITLE"],
   "url": os.environ["URL"],
-  "category": os.environ.get("CAT") or "Autre",
+  "category": os.environ.get("CAT") or os.environ["DEFAULT_RESOURCE_CATEGORY"],
 }
 if os.environ.get("INTERNAL") == "1":
   payload["internal"] = True
@@ -331,7 +334,7 @@ PY
         ;;
       create-md|create-markdown)
         parse_client_positional "${1:-}" strict || {
-          echo "Usage: spark.sh resources create-md [client] <title> [body] [--category …] [--public]" >&2
+          echo "Usage: spark.sh resources create-md [client] <title> [body] ${RESOURCE_CATEGORY_USAGE} [--public]" >&2
           client_missing_hint
           exit 1
         }
@@ -340,7 +343,7 @@ PY
         title="${1:-}"
         shift || true
         body_md=""
-        category="Autre"
+        category="$DEFAULT_RESOURCE_CATEGORY"
         public_flag=0
         # body is next positional unless flag
         if [ "$#" -gt 0 ] && [[ "$1" != --* ]]; then
@@ -380,11 +383,11 @@ PY
           esac
         done
         if [ -z "$client" ] || [ -z "$title" ]; then
-          echo "Usage: spark.sh resources create-md <client> <title> [body] [--category Comptes-rendus] [--public]" >&2
+          echo "Usage: spark.sh resources create-md <client> <title> [body] ${RESOURCE_CATEGORY_USAGE} [--public] (défaut ${DEFAULT_RESOURCE_CATEGORY})" >&2
           exit 1
         fi
         payload="$(
-          CLIENT="$client" TITLE="$title" BODY="$body_md" CAT="$category" PUB="$public_flag" python3 - <<'PY'
+          CLIENT="$client" TITLE="$title" BODY="$body_md" CAT="$category" DEFAULT_RESOURCE_CATEGORY="$DEFAULT_RESOURCE_CATEGORY" PUB="$public_flag" python3 - <<'PY'
 import json, os
 pub = os.environ.get("PUB") == "1"
 payload = {
@@ -392,7 +395,7 @@ payload = {
   "kind": "markdown",
   "title": os.environ["TITLE"],
   "body": os.environ.get("BODY") or "",
-  "category": os.environ.get("CAT") or "Autre",
+  "category": os.environ.get("CAT") or os.environ["DEFAULT_RESOURCE_CATEGORY"],
 }
 if pub:
   payload["internal"] = False
@@ -405,7 +408,7 @@ PY
         ;;
       create-file|create-upload)
         parse_client_positional "${1:-}" strict || {
-          echo "Usage: spark.sh resources create-file [client] <path/to/file> [title] [--category …] [--internal]" >&2
+          echo "Usage: spark.sh resources create-file [client] <path/to/file> [title] ${RESOURCE_CATEGORY_USAGE} [--internal]" >&2
           client_missing_hint
           exit 1
         }
@@ -414,7 +417,7 @@ PY
         file_path="${1:-}"
         shift || true
         title=""
-        category="Autre"
+        category="$DEFAULT_RESOURCE_CATEGORY"
         internal_flag=0
         if [ "$#" -gt 0 ] && [[ "$1" != --* ]]; then
           title="${1:-}"
@@ -453,7 +456,7 @@ PY
           esac
         done
         if [ -z "$client" ] || [ -z "$file_path" ]; then
-          echo "Usage: spark.sh resources create-file <client> <file> [title] [--category Lectures] [--internal]" >&2
+          echo "Usage: spark.sh resources create-file <client> <file> [title] ${RESOURCE_CATEGORY_USAGE} [--internal] (défaut ${DEFAULT_RESOURCE_CATEGORY})" >&2
           exit 1
         fi
         if [ ! -f "$file_path" ]; then
@@ -462,13 +465,13 @@ PY
         fi
         if [ -z "$title" ]; then title="$(basename "$file_path")"; fi
         multipart_args=(
-          -F "clientSlug=${client}"
-          -F "title=${title}"
-          -F "category=${category}"
+          --form-string "clientSlug=${client}"
+          --form-string "title=${title}"
+          --form-string "category=${category}"
           -F "file=@${file_path}"
         )
         if [ "$internal_flag" = 1 ]; then
-          multipart_args+=(-F "internal=true")
+          multipart_args+=(--form-string "internal=true")
         fi
         api_multipart "/api/v1/resources" "${multipart_args[@]}"
         echo
@@ -477,8 +480,7 @@ PY
         id="${1:-}"
         shift || true
         parse_client_positional "${1:-}" || true
-        # patch: resources patch <id> '{"title":"…"}' [--client slug]
-        # or resources patch <id> <client> '{"…"}'
+        # patch: resources patch <id> '{"category":"Livrables"}' [--client slug]
         json_body=""
         client="${PARSED_CLIENT:-}"
         if [ -n "${1:-}" ] && [[ "${1:-}" == \{* ]]; then
@@ -513,7 +515,7 @@ PY
           esac
         done
         if [ -z "$id" ] || [ -z "$json_body" ]; then
-          echo "Usage: spark.sh resources patch <id> '{\"title\":\"…\",\"body\":\"…\"}' [--client slug]" >&2
+          echo "Usage: spark.sh resources patch <id> '{\"category\":\"Livrables\"}' [--client slug]" >&2
           exit 1
         fi
         fill_client_if_empty "$client"
@@ -1576,7 +1578,7 @@ if sc:
   payload["score"] = int(sc)
 proj = (os.environ.get("PROJECT") or "").strip()
 if proj:
-  # create API : projectId = cuid uniquement (pas le nom).
+  # create API : projectId = CUID ou nom (SKILL, « Résolution d’identifiants »).
   payload["projectId"] = proj
 print(json.dumps(payload))
 PY

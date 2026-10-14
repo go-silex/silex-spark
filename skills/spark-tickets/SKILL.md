@@ -70,17 +70,17 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Non retenu (+ doublon + commentaire) | `bash "$SCRIPT" tickets reject <id\|ref> [--client slug] [--duplicate <ref>] [--comment "…"]` |
 | Détail ticket (+ comments) | `bash "$SCRIPT" tickets get <id\|ref> [--client slug]` |
 | Lister commentaires | `bash "$SCRIPT" tickets comments list <id\|ref> [--client slug]` |
-| Poster / répondre | `bash "$SCRIPT" tickets comments add <id\|ref> "body" [--parent N] [--internal] [--client slug]` |
+| Poster / répondre | `bash "$SCRIPT" tickets comments add <id\|ref> "body" [--parent N] [--internal] [--client slug]` — `--parent` = premier niveau, même fil (pilotage) |
 | Lister issues GH liées | `bash "$SCRIPT" tickets github-list <id\|ref> [--client slug]` |
 | Créer issue GitHub | `bash "$SCRIPT" tickets github-create <id\|ref> [--client slug]` |
 | Lier issue GitHub | `bash "$SCRIPT" tickets github-link <id\|ref> "#42" [--client slug]` |
 | Délier issue GitHub | `bash "$SCRIPT" tickets github-unlink <id\|ref> 42 [--client slug]` |
 | Lister ressources | `bash "$SCRIPT" resources list <clientSlug>` |
 | Détail ressource (+ body markdown) | `bash "$SCRIPT" resources get <id> [client]` |
-| Créer lien | `bash "$SCRIPT" resources create <client> <title> <url> [--category Lectures] [--internal]` |
-| Créer markdown (CR) | `bash "$SCRIPT" resources create-md <client> <title> [body] [--category Comptes-rendus] [--public]` |
-| Créer fichier (PDF/image/vidéo) | `bash "$SCRIPT" resources create-file <client> <path/to/file> [title] [--category Lectures] [--internal]` |
-| Patch ressource | `bash "$SCRIPT" resources patch <id> '{"title":"…","body":"…"}' [--client slug]` |
+| Créer lien | `bash "$SCRIPT" resources create <client> <title> <url> [--category <type de document>] [--internal]` |
+| Créer markdown | `bash "$SCRIPT" resources create-md <client> <title> [body] [--category <type de document>] [--public]` |
+| Créer fichier (PDF/image/vidéo) | `bash "$SCRIPT" resources create-file <client> <path/to/file> [title] [--category <type de document>] [--internal]` |
+| Patch ressource | `bash "$SCRIPT" resources patch <id> '{"category":"Livrables"}' [--client slug]` |
 | Supprimer ressource | `bash "$SCRIPT" resources delete <id> [client]` |
 | Journeys list/create/get/patch/delete | `bash "$SCRIPT" journeys …` |
 | Organigramme get/put | `bash "$SCRIPT" orgchart get\|put …` |
@@ -88,7 +88,7 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Board Tâches (≠ tickets) | `bash "$SCRIPT" tasks list\|create …` |
 | Capturer une Idée | `bash "$SCRIPT" ideas create [clientSlug] "Titre" [--internal]` |
 | Tâche get/patch/delete | `bash "$SCRIPT" tasks patch <cuid> '{"priority":"p1"}' [--client slug]` (idem `get`/`delete`) |
-| Comments board tâches | `bash "$SCRIPT" tasks comments list\|add <cuid> … [--client slug]` |
+| Comments board tâches | `bash "$SCRIPT" tasks comments list\|add <cuid> … [--client slug] [--parent N]` — `--parent` = premier niveau, même fil (taches) |
 | Lister projets | `bash "$SCRIPT" projects list <clientSlug> [--kind development]` |
 | Lookup projet par dépôt GitHub | `bash "$SCRIPT" projects by-repo <owner>/<repo>` |
 | Créer projet | `bash "$SCRIPT" projects create <clientSlug> "Nom" [kind] [color]` |
@@ -97,6 +97,8 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Lister liens | `bash "$SCRIPT" links list <client> [--task <id\|ref>] [--kind parent\|blocks]` |
 | Créer lien | `bash "$SCRIPT" links add <client> <task> <relation> <other>` |
 | Supprimer lien | `bash "$SCRIPT" links delete <client> <linkId>` |
+
+Les trois créations utilisent **Documentation** par défaut. Types canoniques : **Cadrage**, **Livrables**, **Comptes-rendus**, **Présentations**, **Documentation**, **Devis**, **Factures**, **Contrats & NDA** ; un type libre ou historique reste accepté.
 
 ### Relations (`links add`)
 
@@ -134,7 +136,7 @@ Si le compte accède à **plusieurs espaces**, passer le slug (`--client` / arg)
 | `--public` | `internal: false` (visible client + notifs client) |
 | `--priority p0\|p1\|p2\|p3` | Priorité dès le create (défaut API **p2** si omis) |
 | `--type bug\|feature` | Type ticket (défaut API **feature**) |
-| `--project <cuid\|name>` | `projectId` — CUID ou nom **unique** (ambigu → 400). Omis : rattache le seul projet Pilotage s'il n'y en a qu'un. |
+| `--project <cuid\|name>` | `projectId` — CUID recommandé. Nom : règle de création (« Résolution d’identifiants », ci-dessous). Sans `--project`, le projet par défaut configuré (`SPARK_PROJECT` / spark.yml) est envoyé et suit la même règle (404 possible) ; sans défaut configuré, le serveur rattache le seul projet Pilotage visible s'il n'y en a qu'un. |
 | `--score <n>` | Score saisi dès le create — `1\|2\|3\|5\|8\|13\|21` (jouable) ou `34\|55` (préscore) ; staff only |
 
 ```bash
@@ -246,22 +248,23 @@ Client comme `tickets list` (arg / `SPARK_CLIENT` / spark.yml). Pas de slug déf
 6. Projets `development` = Pilotage ; défaut CLI create = `kind=development`.
 7. GitHub : projet `githubEnabled` + repo ; `:id` = **cuid** ticket **ou** ref + `--client` (même règle que get/patch).
 8. **Résolution d’identifiants** (unicité stricte) :
-   - **CUID** → toujours OK (unique global).
+   - **CUID** → unique global, jamais ambigu. En création de ticket, il doit désigner un projet Pilotage ouvert et visible de l'espace, sinon **404**.
    - **Ref numérique** `#N` / `N` → unique par espace → **`--client <slug>`** si plusieurs espaces (sinon 400).
-   - **Nom** (projet) → exactement 1 match (exact puis contains) ; sinon **400** + `candidates` → passer le CUID.
+   - **Nom** (projet), **création de ticket** (`tickets create`) → nom exact (casse ignorée) de n'importe quel projet de l'espace : il doit être un projet Pilotage ouvert et visible, sinon **404** (pas de repli) ; sans nom exact, contenu dans le nom d'un seul projet Pilotage ouvert et visible. Plusieurs → **400** + `candidates` (projets Pilotage éligibles seulement) → passer le CUID. Aucun → **404**.
+   - **Nom** (projet), **recherche** (`tickets search --project`) → projets ouverts de l'espace, tout type, exact puis contains. Plusieurs → **400** + `candidates`. Aucun → liste vide (200, pas d'erreur : vérifier le nom avant de conclure « aucun ticket »). **Ré-projet staff** : `tickets patch <id|ref> '{"projectId":"<cuid|nom>"}' [--client slug]` ; le projet cible peut être tout projet actif du même espace, exact puis contains (plusieurs → **400** + `candidates`, aucun → **404**). Les ré-projets successifs restent possibles tant que les droits sur la carte source courante le permettent ; après sortie de Pilotage, un staff limité à Pilotage peut recevoir **404**. Une cible non-Pilotage supprime `type` et `environment`, même fournis dans ce JSON ; une cible Pilotage les conserve. Depuis une cible non-Pilotage, fournir explicitement `type` (`bug` ou `feature`), et `environment` si `type` vaut `bug`. `{"projectId":null}` détache sans effacer ces signaux.
    - **`tasks get|patch|delete|comments`** → CUID seul (pas de ref), vérifié par le CLI (`c…`). L'espace d'un CUID ne se devine pas : le CLI n'utilise **jamais** le défaut `spark.yml` ici, seulement `--client` (ou le slug positionnel pour get/delete/comments list). Owner multi-espaces sans client → **400 « client requis »** : repasser avec `--client`. Compte mono-espace → son espace, flag inutile. L'exit code reste 0 sur une erreur API : lire le champ `error` du JSON.
 9. Scopes `tickets:read|write` = **API v1 générique** (toutes surfaces), pas « tickets only ».
 
 ### Discussion (comments = fil Task)
 
-Vocabulaire : **tickets** = Pilotage · **tasks** = board Tâches · **task-links** = relations · **comments** = Discussion (tickets *ou* tasks).
+Vocabulaire : **tickets** = Pilotage · **tasks** = board Tâches · **task-links** = relations · **comments** = Discussion (tickets *ou* tasks). Chaque commentaire expose `sectionKey` (filtrer avant `--parent`) et `editedAt` (null = jamais modifié ; sinon afficher « modifié »).
 
 ```bash
 # Lire ticket + fil
 bash "$SCRIPT" tickets get <cuid|ref> [--client slug]
 # Patch (ref → --client si plusieurs espaces)
 bash "$SCRIPT" tickets patch 42 '{"priority":"p1"}' --client acme
-# Poster / répondre
+# Poster / répondre (--parent = premier niveau, même fil)
 bash "$SCRIPT" tickets comments add 42 "Message" --client acme [--parent N] [--internal]
 ```
 
@@ -301,7 +304,7 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET | `/api/v1/tickets/:id` | `tickets:read` — détail + `comments` + links |
 | PATCH | `/api/v1/tickets/:id` | `tickets:write` |
 | GET | `/api/v1/tickets/:id/comments` | `tickets:read` — Discussion |
-| POST | `/api/v1/tickets/:id/comments` | `tickets:write` — `{ body, parentId?, internal? }` |
+| POST | `/api/v1/tickets/:id/comments` | `tickets:write` — `{ body, parentId?, internal? }` ; `comments[]` portent `sectionKey` (filtrer avant `--parent`) ; `parentId` = commentaire de premier niveau **du fil pilotage** (sinon 400) |
 | POST | `/api/v1/tickets/upload` | `tickets:write` — FormData `file` + `clientSlug?` → `{ url }` |
 | GET | `/uploads/<slug>/tickets/…` | cookie session **ou** Bearer PAT (`tickets:read\|write`) |
 | POST | `/api/v1/tickets/:id/github-issue` | `tickets:write` → **créer** issue GH |
@@ -321,7 +324,7 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET/POST | `/api/v1/tickets/:id/links` | nested |
 | DELETE | `/api/v1/tickets/:id/links/:linkId` | nested |
 | GET/POST | `/api/v1/resources` | section ressources |
-| GET/PATCH/DELETE | `/api/v1/resources/:id` | get body markdown ; patch title/body/internal ; hard delete |
+| GET/PATCH/DELETE | `/api/v1/resources/:id` | get body markdown ; PATCH accepte notamment `{ "category": "Livrables" }` ; hard delete |
 | GET | `/uploads/<slug>/resources/…` | cookie ou PAT |
 | GET/POST | `/api/v1/journeys` | section flux |
 | GET/PATCH/DELETE | `/api/v1/journeys/:id` | |
@@ -329,6 +332,6 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET/PATCH | `/api/v1/accueil` | section accueil |
 | GET/POST | `/api/v1/tasks` | board Tâches ≠ tickets Pilotage |
 | GET/PATCH/DELETE | `/api/v1/tasks/:id` | board CRUD |
-| GET/POST | `/api/v1/tasks/:id/comments` | Discussion board |
+| GET/POST | `/api/v1/tasks/:id/comments` | Discussion board — `comments[]` portent `sectionKey` ; `parentId` = premier niveau **du fil taches** |
 
 API prod : https://spark.gosilex.com
