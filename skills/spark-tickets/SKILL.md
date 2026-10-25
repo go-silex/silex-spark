@@ -1,6 +1,6 @@
 ---
 name: spark-tickets
-description: "API Spark PAT spu_ : tickets Pilotage + discussion + board tasks + resources/journeys/org/accueil + projets + liens + GitHub. Triggers: \"spark tickets\" | \"spark tasks\" | \"spark resources\" | \"spark journeys\" | \"spark orgchart\" | \"spark accueil\" | \"list tickets spark\" | \"crée un ticket spark\" | \"commente le ticket\" | \"board tâches\" | \"spark projects\" | \"spark links\" | \"spark api\" | \"spark meta\"."
+description: "API Spark PAT spu_ : Pilotage, Idées, tâches, discussion, ressources/journeys/org/accueil, projets, liens, GitHub et utilisateurs. Triggers: \"spark tickets\" | \"spark idées\" | \"spark tasks\" | \"spark users\" | \"gérer utilisateurs spark\" | \"spark resources\" | \"spark journeys\" | \"spark orgchart\" | \"spark accueil\" | \"list tickets spark\" | \"crée un ticket spark\" | \"commente le ticket\" | \"board tâches\" | \"spark projects\" | \"spark links\" | \"spark api\" | \"spark meta\"."
 ---
 
 # spark-tickets — API Spark (PAT)
@@ -86,7 +86,13 @@ chmod +x "$SCRIPT" 2>/dev/null || true
 | Organigramme get/put | `bash "$SCRIPT" orgchart get\|put …` |
 | Accueil get/patch | `bash "$SCRIPT" accueil get\|patch …` |
 | Board Tâches (≠ tickets) | `bash "$SCRIPT" tasks list\|create …` |
-| Capturer une Idée | `bash "$SCRIPT" ideas create [clientSlug] "Titre" [--internal]` |
+| Rejeter une tâche | `bash "$SCRIPT" tasks reject <cuid> [--reason\|--comment "…"] [--duplicate\|--duplicate-of-task-id <cuid\|ref>] [--patch '{"priority":"p2"}'] [--client slug]` |
+| Rétrograder une tâche | `bash "$SCRIPT" tasks demote-preview <cuid> [--client slug]` puis `tasks demote <cuid> --apply [--client slug]` |
+| Gérer une Idée | `bash "$SCRIPT" ideas list\|create\|get\|patch\|delete\|promote …` |
+| Rétrograder un ticket | `bash "$SCRIPT" tickets demote-preview <id\|ref> [--client slug]` puis `tickets demote <id\|ref> --apply [--client slug]` |
+| Supprimer ticket | `bash "$SCRIPT" tickets delete <id\|ref> [--client slug]` |
+| Discussion générique | `bash "$SCRIPT" comments list\|add\|edit\|delete …` · `activity <client> <taskCuid>` |
+| Utilisateurs (owner) | `bash "$SCRIPT" users list [--client slug] [--role role] [--query texte]` · `users create\|get\|patch\|delete\|reset-password …` |
 | Tâche get/patch/delete | `bash "$SCRIPT" tasks patch <cuid> '{"priority":"p1"}' [--client slug]` (idem `get`/`delete`) |
 | Comments board tâches | `bash "$SCRIPT" tasks comments list\|add <cuid> … [--client slug] [--parent N]` — `--parent` = premier niveau, même fil (taches) |
 | Lister projets | `bash "$SCRIPT" projects list <clientSlug> [--kind development]` |
@@ -150,21 +156,48 @@ bash "$SCRIPT" tickets create acme "Bouton budget cassé" "…" --public
 bash "$SCRIPT" tickets create acme "Images cassées" "…" --public --priority p0 --type feature
 ```
 
-### `ideas create` — capture Idées
+### Idées et conversions
 
-Une Idée est une Task sans projet, statut, Score ni échéance. Titre seul (200). Pas de notif Slack. La section Idées doit être ouverte pour un compte client ; un owner passe le verrou.
-
-| Flag | Effet |
-| --- | --- |
-| *(aucun)* | **visible** (`internal: false`) — comme la capture de l'onglet |
-| `--internal` | masquée au client ; refusé (403) hors staff Silex |
+Une Idée est une Task sans projet, statut, Score ni échéance. Le create est visible par défaut (`internal: false`), sans notif Slack ; `--internal` est réservé au staff Silex.
 
 ```bash
-bash "$SCRIPT" ideas create acme "Microtool d'audit de projet vibe-codé"
-bash "$SCRIPT" ideas create acme "Note staff" --internal
+bash "$SCRIPT" ideas list acme
+bash "$SCRIPT" ideas create acme "Une idée"
+bash "$SCRIPT" ideas get <cuid> --client acme
+bash "$SCRIPT" ideas patch <cuid> '{"title":"…"}' --client acme
+bash "$SCRIPT" ideas promote <cuid> --client acme
+bash "$SCRIPT" ideas delete <cuid> --client acme
 ```
 
-Description, tags et images se posent dans l'onglet, pas par cette commande.
+`ideas/:id` et `tasks/:id` attendent un **CUID**. Pour une rétrogradation, le preview **ne modifie rien** ; la mutation exige littéralement `--apply` :
+
+```bash
+bash "$SCRIPT" tasks demote-preview <cuid> --client acme
+bash "$SCRIPT" tasks demote <cuid> --apply --client acme
+bash "$SCRIPT" tickets demote-preview 42 --client acme
+bash "$SCRIPT" tickets demote 42 --apply --client acme
+```
+
+### Discussion générique, activité et utilisateurs
+
+```bash
+bash "$SCRIPT" comments list acme pilotage --target-type task --target-id <cuid>
+bash "$SCRIPT" comments add acme pilotage task <cuid> "Message" [--parent N] [--internal]
+bash "$SCRIPT" comments edit <id> "Texte corrigé"
+bash "$SCRIPT" comments delete <id>
+bash "$SCRIPT" activity acme <taskCuid>
+```
+
+Les commentaires génériques, l'historique et les Idées acceptent une **PAT personnelle `spu_…`**, jamais une clé M2M `spk_…`. `users` est plus strict : **owner Silex + PAT personnelle** uniquement (`tickets:read` list/get, `tickets:write` mutations) ; M2M et PAT non-owner sont refusées.
+
+```bash
+bash "$SCRIPT" users list --client acme --role client --query "collaborator"
+bash "$SCRIPT" users create '{"email":"collaborator@example.com","name":"Collaborator","role":"client","clientSlug":"acme","sections":["pilotage"]}'
+bash "$SCRIPT" users patch <id> '{"name":"Nouveau nom"}'
+bash "$SCRIPT" users reset-password <id>
+```
+
+Create/reset renvoie le mot de passe généré une seule fois : le transmettre par un canal sûr, sans le mettre dans un exemple, un log ou un ticket. `--password` permet une valeur choisie si nécessaire.
 
 ### `tickets search` (filtres API)
 
@@ -311,6 +344,8 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET | `/api/v1/tickets/:id/github-issues` | `tickets:read` → **lister** |
 | POST | `/api/v1/tickets/:id/github-issues` | `tickets:write` → **lier** `{ reference }` |
 | DELETE | `/api/v1/tickets/:id/github-issues?issueNumber=N` | `tickets:write` → **délier** |
+| DELETE | `/api/v1/tickets/:id?client=` | `tickets:write` — CUID ou ref ; PAT personnelle, pas M2M |
+| GET/POST | `/api/v1/tickets/:id/demote?client=` | `tickets:read` preview sans écriture / `tickets:write` mutation — CUID ou ref |
 | GET | `/api/v1/projects?meta=1` | read **ou** write |
 | GET | `/api/v1/projects?client=` | `tickets:read` |
 | GET | `/api/v1/projects/by-repo?owner=&repo=` | `tickets:read` ; match owner/repo **case-sensitive** ; **404** si dépôt inconnu ou `githubEnabled` false |
@@ -333,5 +368,16 @@ bash "$SCRIPT" tickets github-unlink <cuid> 42
 | GET/POST | `/api/v1/tasks` | board Tâches ≠ tickets Pilotage |
 | GET/PATCH/DELETE | `/api/v1/tasks/:id` | board CRUD |
 | GET/POST | `/api/v1/tasks/:id/comments` | Discussion board — `comments[]` portent `sectionKey` ; `parentId` = premier niveau **du fil taches** |
+| POST | `/api/v1/tasks/:id/reject?client=` | `tickets:write` — `{ reason?, duplicateOf?, patch? }`, task CUID, PAT personnelle |
+| GET/POST | `/api/v1/tasks/:id/demote?client=` | preview sans écriture / mutation, task CUID, PAT personnelle |
+| GET/POST | `/api/v1/ideas?client=` | list / create `{ clientSlug, title, internal? }`, PAT personnelle, pas M2M |
+| GET/PATCH/DELETE | `/api/v1/ideas/:id?client=` | Idée CUID, PAT personnelle |
+| POST | `/api/v1/ideas/:id/promote?client=` | `tickets:write`, Idée CUID, PAT personnelle |
+| GET/POST | `/api/v1/comments` | Discussion générique ; GET `client,section,targetType?,targetId?`, POST `{clientSlug,sectionKey,targetType,targetId?,body,parentId?,internal?}` ; PAT personnelle |
+| PATCH/DELETE | `/api/v1/comments/:id` | `tickets:write`, PAT personnelle |
+| GET | `/api/v1/task-activity?client=&taskId=` | `tickets:read`, PAT personnelle |
+| GET/POST | `/api/v1/users` | **owner Silex + PAT personnelle** ; `tickets:read` list, `tickets:write` create |
+| GET/PATCH/DELETE | `/api/v1/users/:id` | **owner Silex + PAT personnelle** |
+| POST | `/api/v1/users/:id/password` | **owner Silex + PAT personnelle** ; retourne le secret généré une seule fois |
 
 API prod : https://spark.gosilex.com

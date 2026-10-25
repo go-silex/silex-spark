@@ -14,6 +14,10 @@ Produit : [https://spark.gosilex.com](https://spark.gosilex.com)
 **SoT = dépôt privé `go-silex/spark`, dossier `plugins/silex-spark/`.**  
 Ce dépôt GitHub (`go-silex/silex-spark`) est un **miroir en lecture seule**, synchronisé depuis `main` (prod). Issues et PRs ne sont pas le canal de contribution — voir `CONTRIBUTING.md`.
 
+Chaque snapshot publié porte une version `mirror-<SHA-256>` dérivée du contenu public, hors métadonnées Git à toute profondeur, puis inscrite dans les manifestes et catalogues des différents clients. Un changement public invalide ainsi le cache installé ; une relance sans changement public conserve la même version. Le contenu est synchronisé même lorsque sa taille et sa date sont inchangées. Les versions sources restent inchangées.
+
+Le publisher synchronise les fichiers réguliers par remplacement, puis remplace les métadonnées par un nouveau fichier, pour ne pas modifier les octets ou permissions d'une source ou d'un fichier externe partageant son inode. Les métadonnées Git (`.git`), même imbriquées, ne peuvent pas être cibles du stamping. Un dossier devenu interne est retiré du snapshot suivant, sans effacer l’historique Git déjà publié. La racine `SRC` est résolue une seule fois, y compris via lien symbolique, pour le scan et la copie. Les chemins marqués et les chemins résolus de métadonnées sont traités littéralement, y compris les métacaractères, antislashs et LF finaux.
+
 ## Install (Claude Code)
 
 ```bash
@@ -49,8 +53,13 @@ Dans `.claude/settings.json` :
 ## Install (OMP)
 
 ```bash
-omp plugin install 'github:go-silex/silex-spark#main'
+omp plugin marketplace add go-silex/silex-spark
+omp plugin install silex-spark@silex-spark --scope user
+omp plugin marketplace update silex-spark
+omp plugin upgrade silex-spark@silex-spark
 ```
+
+La mise à jour OMP ci-dessus est explicite ; `autoUpdate` dans la configuration Claude ne règle pas OMP. Après une mise à jour, recharger les plugins ou redémarrer la session pour activer la nouvelle copie.
 
 ## Config machine
 
@@ -97,6 +106,12 @@ Priorité : CLI / `--client` → `SPARK_CLIENT` → config projet → spark.yml 
 
 Les skills résolvent `spark.sh` **uniquement** via `CLAUDE_PLUGIN_ROOT` (plugin marketplace installé). Pas de fallback vers un clone git local.
 
+Pour `tickets delete|demote-preview|demote` et `ideas get|delete|promote`, une erreur de transport interrompt la commande sans rejeu ni retrait du client sélectionné.
+
+Ces commandes Pilotage acceptent `'#42'` comme `42` ; les identifiants des commandes de tickets, commentaires et utilisateurs ajoutées ici restent un seul segment d'URL. Les segments de traversée `.` et `..` sont refusés avant tout appel.
+
+Les valeurs des filtres sont encodées comme des données, y compris les espaces, accents et caractères réservés ; leur validation et les restrictions de droits restent inchangées.
+
 ```bash
 : "${CLAUDE_PLUGIN_ROOT:?installer silex-spark@silex-spark}"
 SCRIPT="${CLAUDE_PLUGIN_ROOT}/skills/spark-tickets/scripts/spark.sh"
@@ -128,10 +143,21 @@ bash "$SCRIPT" accueil get acme
 bash "$SCRIPT" accueil patch acme '{"recap":"## MAJ\n"}'
 bash "$SCRIPT" tasks list acme
 bash "$SCRIPT" tasks create acme "Nouvelle tâche" "détail"
+bash "$SCRIPT" tasks reject <cuid> --reason "Doublon" --duplicate 42 --client acme
+bash "$SCRIPT" tasks demote-preview <cuid> --client acme  # lecture seule
+bash "$SCRIPT" tasks demote <cuid> --apply --client acme
+bash "$SCRIPT" tickets demote-preview 42 --client acme     # lecture seule
+bash "$SCRIPT" tickets demote 42 --apply --client acme
+bash "$SCRIPT" tickets delete 42 --client acme
+bash "$SCRIPT" ideas list acme
 bash "$SCRIPT" ideas create acme "Une idée"            # visible (défaut)
-bash "$SCRIPT" ideas create acme "Note staff" --internal
-bash "$SCRIPT" tasks patch <id> '{"priority":"p1"}' --client acme
-bash "$SCRIPT" tasks comments add <id> "note" --client acme
+bash "$SCRIPT" ideas get <cuid> --client acme
+bash "$SCRIPT" ideas patch <cuid> '{"title":"Idée précisée"}' --client acme
+bash "$SCRIPT" ideas promote <cuid> --client acme
+bash "$SCRIPT" ideas delete <cuid> --client acme
+bash "$SCRIPT" comments list acme pilotage --target-type task --target-id <cuid>
+bash "$SCRIPT" comments add acme pilotage task <cuid> "Message"
+bash "$SCRIPT" activity acme <cuid>
 bash "$SCRIPT" projects list acme --kind development
 bash "$SCRIPT" projects create acme "App mobile" development coral
 bash "$SCRIPT" projects patch <id> '{"name":"Nouveau nom"}'
@@ -141,15 +167,32 @@ bash "$SCRIPT" links add acme 18 blocked_by 12
 bash "$SCRIPT" links delete acme <linkId>
 ```
 
+### Utilisateurs
+
+Les routes `users` demandent une **PAT personnelle `spu_…` d'owner Silex** ; une clé M2M `spk_…`, ou une PAT non-owner, est refusée. List/get lisent avec `tickets:read`; create/patch/delete/reset avec `tickets:write`.
+
+```bash
+bash "$SCRIPT" users list --client acme --role client --query "collaborator"
+bash "$SCRIPT" users create '{"email":"collaborator@example.com","name":"Collaborator","role":"client","clientSlug":"acme","sections":["pilotage"]}'
+bash "$SCRIPT" users get <id>
+bash "$SCRIPT" users patch <id> '{"name":"Nouveau nom"}'
+bash "$SCRIPT" users delete <id>
+bash "$SCRIPT" users reset-password <id>
+```
+
+Create et reset affichent le secret généré une seule fois : le transmettre par un canal sûr, sans le copier dans un dépôt, un ticket ou un log. Les rôles et l'espace ne se transfèrent pas par patch.
+
 Alias shell (hors agent) — cache marketplace, **pas** un clone git :
 
 ```bash
-# dernière version installée du plugin
-ROOT=$(ls -d "$HOME/.claude/plugins/cache/silex-spark/silex-spark"/*/ 2>/dev/null | sort | tail -1)
-alias spark-api="bash ${ROOT}skills/spark-tickets/scripts/spark.sh"
+# copie effectivement installée (les versions de snapshot ne sont pas ordonnées)
+ROOT=$(jq -er \
+  '.plugins["silex-spark@silex-spark"][] | select(.scope == "user") | .installPath' \
+  "$HOME/.claude/plugins/installed_plugins.json") &&
+alias spark-api="bash \"${ROOT}/skills/spark-tickets/scripts/spark.sh\""
 ```
 
-Développeurs Silex : dans un clone de `go-silex/spark`, la marketplace colocated reste **`silex-spark@spark`** (directory `.`) ; pas besoin d’installer le miroir public pour travailler dans ce repo.
+Dans un clone de `go-silex/spark`, utiliser aussi **`silex-spark@silex-spark`** depuis le miroir GitHub public ; l'ancien alias local `silex-spark@spark` est désactivé.
 
 ## License
 

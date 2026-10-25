@@ -10,10 +10,23 @@
 #   spark.sh tickets create <clientSlug> <title> [body] [--priority p0|p1|p2|p3] [--type bug|feature] [--project id|name] [--score n] [--internal|--public]
 #     défaut PAT staff = internal true ; --public = visible client ; priority défaut API = p2
 #   spark.sh tickets patch <id|ref> <json> [--client slug]
+#   spark.sh tickets delete <id|ref> [--client slug]
+#   spark.sh tickets demote-preview <id|ref> [--client slug]
+#   spark.sh tickets demote <id|ref> --apply [--client slug]
 #   spark.sh tickets reject <id|ref> [--client slug] [--duplicate <ref|id>] [--comment "…"]
-#   spark.sh tickets get <id|ref> [--client slug]
-#   spark.sh tickets comments list <id|ref> [--client slug]
-#   spark.sh tickets comments add <id|ref> "body" [--parent N] [--internal] [--client slug]
+#
+#
+#   spark.sh tasks list|create …
+#   spark.sh tasks get|delete <cuid> [clientSlug | --client slug]
+#   spark.sh tasks patch <cuid> <json> [--client slug]
+#   spark.sh tasks reject <cuid> [--reason|--comment text] [--duplicate|--duplicate-of-task-id <cuid|ref>] [--patch <json>] [--client slug]
+#   spark.sh tasks demote-preview <cuid> [clientSlug | --client slug]
+#   spark.sh tasks demote <cuid> --apply [clientSlug | --client slug]
+#   spark.sh tasks comments list|add <cuid> … [--client slug]
+#   spark.sh ideas list|create|get|patch|delete|promote …
+#   spark.sh comments list|add|edit|delete …
+#   spark.sh activity <clientSlug> <taskCuid>
+#   spark.sh users list|create|get|patch|delete|reset-password …
 #   spark.sh tickets github-list <id|ref> [--client slug]
 #   spark.sh tickets github-create <id|ref> [--client slug]
 #   spark.sh tickets github-link <id|ref> <#n|url> [--client slug]
@@ -49,6 +62,8 @@ RESOURCE_CATEGORY_USAGE='[--category "Cadrage|Livrables|Comptes-rendus|Présenta
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=spark-config.sh
 . "${SCRIPT_DIR}/spark-config.sh"
+# shellcheck source=spark-v1-parity.sh
+. "${SCRIPT_DIR}/spark-v1-parity.sh"
 
 resolve_key() {
   if [ -n "${SPARK_USER_API_KEY:-}" ]; then
@@ -133,7 +148,7 @@ api() {
       -H "Authorization: Bearer $key" \
       -H "Content-Type: application/json" \
       -H "Accept: application/json" \
-      --data "$1"
+      --data-raw "$1"
   else
     curl -sS --connect-timeout 10 --max-time 60 -X "$method" "$path" \
       -H "Authorization: Bearer $key" \
@@ -690,6 +705,9 @@ PY
           api DELETE "/api/v1/tasks/${id}"
         fi
         echo
+        ;;
+      demote-preview|demote|reject)
+        spark_parity_tasks "$sub" "$@"
         ;;
       comments)
         csub="${1:-}"
@@ -1703,6 +1721,9 @@ PY
         fi
         echo
         ;;
+      delete|demote-preview|demote)
+        spark_parity_tickets "$sub" "$@"
+        ;;
       get)
         id="${1:-}"
         shift || true
@@ -2085,66 +2106,16 @@ PY
     echo
     ;;
   ideas)
-    isub="${1:-}"
-    shift || true
-    case "$isub" in
-      create)
-        parse_client_positional "${1:-}" strict || {
-          echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
-          client_missing_hint
-          exit 1
-        }
-        client="$PARSED_CLIENT"
-        [ "${NEED_SHIFT:-0}" = 1 ] && shift || true
-        title="${1:-}"
-        shift || true
-        case "$title" in
-          --help | -h)
-            echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
-            echo "  Titre seul. Défaut visible. --internal = masquée au client (staff Silex)." >&2
-            exit 1
-            ;;
-          --*)
-            echo "spark.sh ideas create: le titre ne peut pas commencer par -- (reçu: $title)" >&2
-            exit 1
-            ;;
-          "")
-            echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
-            exit 1
-            ;;
-        esac
-        internal=0
-        while [ $# -gt 0 ]; do
-          case "$1" in
-            --internal) internal=1; shift ;;
-            --*)
-              echo "spark.sh ideas create: option inconnue: $1" >&2
-              exit 1
-              ;;
-            *)
-              echo "spark.sh ideas create: argument inattendu: $1 (titre seul)" >&2
-              exit 1
-              ;;
-          esac
-        done
-        payload="$(
-          TITLE="$title" CLIENT="$client" INTERNAL="$internal" python3 - <<'PY'
-import json, os
-print(json.dumps({
-  "clientSlug": os.environ["CLIENT"],
-  "title": os.environ["TITLE"],
-  "internal": os.environ.get("INTERNAL") == "1",
-}))
-PY
-        )"
-        api POST "/api/v1/ideas" "$payload"
-        echo
-        ;;
-      *)
-        echo "Usage: spark.sh ideas create [clientSlug] <title> [--internal]" >&2
-        exit 1
-        ;;
-    esac
+    spark_parity_ideas "$@"
+    ;;
+  comments)
+    spark_parity_comments "$@"
+    ;;
+  activity)
+    spark_parity_activity "$@"
+    ;;
+  users)
+    spark_parity_users "$@"
     ;;
   "" | help | -h | --help)
     cat <<'EOF'
@@ -2167,10 +2138,17 @@ spark.sh — API Spark (PAT spu_)
   spark.sh tickets create [client] <title> [body] [--public] [--project …] [--score n]
   spark.sh tickets patch <id|ref> '<json>' [--client slug]
   spark.sh tickets reject <id|ref> [--client slug] [--duplicate <ref>] [--comment "…"]
-  spark.sh tickets github-* <id|ref> … [--client slug]
-  spark.sh projects list|by-repo|create|patch|delete …
-  spark.sh links|resources|journeys|orgchart|accueil|tasks …
-  spark.sh ideas create [client] <title> [--internal]
+  spark.sh tickets delete|demote-preview <id|ref> [--client slug]
+  spark.sh tickets demote <id|ref> --apply [--client slug]
+  spark.sh tasks get|patch|delete <cuid> [--client slug]
+  spark.sh tasks reject <cuid> [--reason|--comment text] [--duplicate|--duplicate-of-task-id <cuid|ref>] [--patch '<json>'] [--client slug]
+  spark.sh tasks demote-preview <cuid> [--client slug]
+  spark.sh tasks demote <cuid> --apply [--client slug]
+  spark.sh ideas list|create|get|patch|delete|promote …
+  spark.sh comments list|add|edit|delete …  # Discussion générique
+  spark.sh activity <clientSlug> <taskCuid>
+  spark.sh users list [--client slug] [--role role] [--query text]
+  spark.sh users create|get|patch|delete|reset-password …
   spark.sh config show|init|set …
   spark.sh get|post|patch|delete <path> [json]
 
