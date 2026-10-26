@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "silex-spark",
-  "version": "mirror-8402e34589257ec7305d3137e6f7f6d44f32f4f4e0b01e5a4ff19b699cbe395e",
+  "version": "mirror-246a0b8636fd997218b743da988000dd808cbf0ad41e41446c62205e8751ccc1",
   "description": "API Spark tickets Pilotage + relations — PAT spu_ via ~/.config/silex.",
   "author": {
     "name": "Silex",

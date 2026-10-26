@@ -245,10 +245,10 @@ spark_parity_comments() {
       done
       client="${comment_args[0]:-}"; section="${comment_args[1]:-}"; target_type="${comment_args[2]:-}"; target_id="${comment_args[3]:-}"
       for value in "${comment_args[@]:4}"; do body="${body:+$body }$value"; done
-      [ -n "$client" ] && [ -n "$section" ] && [ -n "$target_type" ] && [ -n "$target_id" ] && [ -n "$body" ] || { echo "Usage: spark.sh comments add <clientSlug> <section> <targetType> <targetId> <body> [--parent N] [--internal]" >&2; return 1; }
+      [ -n "$client" ] && [ -n "$section" ] && [ -n "$target_type" ] && { [ "$target_type" = "page" ] || [ -n "$target_id" ]; } && [ -n "$body" ] || { echo "Usage: spark.sh comments add <clientSlug> <section> <targetType> <targetId> <body> [--parent N] [--internal]" >&2; return 1; }
       json="$(CLIENT="$client" SECTION="$section" TYPE="$target_type" TARGET="$target_id" BODY="$body" PARENT="$parent" INTERNAL="$internal" python3 - <<'PY'
 import json, os
-payload = {"clientSlug": os.environ["CLIENT"], "sectionKey": os.environ["SECTION"], "targetType": os.environ["TYPE"], "targetId": os.environ["TARGET"], "body": os.environ["BODY"]}
+payload = {"clientSlug": os.environ["CLIENT"], "sectionKey": os.environ["SECTION"], "targetType": os.environ["TYPE"], "targetId": os.environ["TARGET"] or None, "body": os.environ["BODY"]}
 if os.environ.get("PARENT"):
     payload["parentId"] = int(os.environ["PARENT"])
 if os.environ.get("INTERNAL") == "1":

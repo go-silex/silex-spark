@@ -157,6 +157,8 @@ bash "$SCRIPT" ideas promote <cuid> --client acme
 bash "$SCRIPT" ideas delete <cuid> --client acme
 bash "$SCRIPT" comments list acme pilotage --target-type task --target-id <cuid>
 bash "$SCRIPT" comments add acme pilotage task <cuid> "Message"
+# Page sans cible : l’argument vide devient null JSON.
+bash "$SCRIPT" comments add acme organigramme page "" "Réponse" --parent N
 bash "$SCRIPT" activity acme <cuid>
 bash "$SCRIPT" projects list acme --kind development
 bash "$SCRIPT" projects create acme "App mobile" development coral

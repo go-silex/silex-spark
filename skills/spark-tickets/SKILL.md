@@ -183,10 +183,13 @@ bash "$SCRIPT" tickets demote 42 --apply --client acme
 ```bash
 bash "$SCRIPT" comments list acme pilotage --target-type task --target-id <cuid>
 bash "$SCRIPT" comments add acme pilotage task <cuid> "Message" [--parent N] [--internal]
+bash "$SCRIPT" comments add acme organigramme page "" "Réponse à la page" --parent N
 bash "$SCRIPT" comments edit <id> "Texte corrigé"
 bash "$SCRIPT" comments delete <id>
 bash "$SCRIPT" activity acme <taskCuid>
 ```
+
+Pour une page sans cible, conserver l’argument positionnel vide `""` : il devient `targetId: null` en JSON. L’identifiant non vide `"null"` reste une chaîne ; les cibles autres que `page` exigent un identifiant non vide.
 
 Les commentaires génériques, l'historique et les Idées acceptent une **PAT personnelle `spu_…`**, jamais une clé M2M `spk_…`. `users` est plus strict : **owner Silex + PAT personnelle** uniquement (`tickets:read` list/get, `tickets:write` mutations) ; M2M et PAT non-owner sont refusées.
 
